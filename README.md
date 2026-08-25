@@ -16,7 +16,26 @@ public Stats API. No key, no account.
 | First pitch (venue-local + your time) | `gameData.datetime` + venue timezone |
 | Ballpark | `gameData.venue.name` |
 
-## During the game
+## No scores, ever
+
+**This tool never shows the score, the inning, or anything about how a game is
+going.** It doesn't even ask the API for the linescore. That's deliberate — the
+point is to fill out a scorebook, and if you record games to watch later, a score
+on the page ruins them.
+
+In-game moves are spoilers too — a starter pulled in the 3rd, five relievers by
+the 6th, or a position player pitching all tell you exactly how it's going. So
+they're **hidden by default**:
+
+- **On the page:** a "Show moves" button appears when there's something to reveal.
+  Your choice is remembered **per game** — revealing at the ballpark does *not*
+  un-hide a different game you're planning to watch on tape.
+- **In the CLI:** pass `--show-moves`.
+
+With moves hidden you still get the full prefill: lineups, positions, jersey
+numbers, both starting pitchers, managers, records, umpires, first pitch, park.
+
+## During the game (with moves revealed)
 
 Every substitution, in order, with the inning it happened:
 
@@ -56,10 +75,12 @@ and nothing running at home**. Open it and it fetches current data.
   live** (substitutions land fast), every 60s inside 4 hours of first pitch with
   the card still incomplete, every 60s inside 45 minutes for late scratches, 5
   minutes otherwise, and it stops once the game is Final.
+- **Spoiler-safe by default** — no score anywhere, and in-game moves stay hidden
+  behind a per-game "Show moves" button.
 - **Refreshes on focus** — coming back to the tab re-pulls if data is stale
   (20s during the game, 60s otherwise).
-- The status line calls out **new moves since your last pull** ("· 2 new moves").
-- **Live score strip** replaces the first-pitch clock once the game starts.
+- The status line calls out **new moves since your last pull** ("· 2 new moves")
+  — but only for a game you've already revealed.
 - **Caches to `localStorage`** — flaky ballpark wifi shows the last good pull
   with an "Offline" marker instead of an error.
 - Date picker for any other day; `?date=YYYY-MM-DD` also works.
@@ -120,9 +141,18 @@ It polls every 30s during the game and every 60s pregame (`--interval N` to
 override). If you only want the pregame header and no in-game tracking, use
 `--watch --until-ready`, which stops as soon as lineups and a posted crew are in.
 
+To see relievers, pinch-hitters, and substitutions, add `--show-moves`:
+
+```bash
+./scorebook.py --watch --show-moves
+```
+
 Other flags: `--html PATH` writes a standalone HTML snapshot, `--json PATH` dumps
 the raw structured data, `--quiet` suppresses the printed sheet, `--no-color` for
 piping or printing.
+
+Note `--json` always contains the moves array (it's raw data, for your own use);
+the printed sheet and the HTML snapshot respect `--show-moves`.
 
 **Artifact snapshot (backup path):** the HTML from `--html` is publishable as a
 private Claude Artifact you can open from the Claude app on your phone:

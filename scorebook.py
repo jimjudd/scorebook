@@ -67,7 +67,7 @@ def _games(sched):
 
 def find_game(date_str):
     """The Cubs game on date_str, else the next one within 10 days."""
-    hyd = "hydrate=probablePitcher,team,venue(timezone),linescore"
+    hyd = "hydrate=probablePitcher,team,venue(timezone)"
     games = _games(get("/api/v1/schedule?sportId=1&teamId=%d&date=%s&%s"
                        % (TEAM_ID, date_str, hyd)))
     if games:
@@ -333,7 +333,6 @@ def load(date_str):
     home = build_side(live, "home", idx)
     away["pitchers"] = pitchers_used(away, moves, idx)
     home["pitchers"] = pitchers_used(home, moves, idx)
-    ls = live["liveData"].get("linescore", {})
     tz = (gd["venue"].get("timeZone") or {}).get("id") or "America/Chicago"
     away["manager"] = manager(away["id"])
     home["manager"] = manager(home["id"])
@@ -352,12 +351,6 @@ def load(date_str):
         "venue": gd["venue"]["name"],
         "venue_tz": tz,
         "venue_tz_abbr": (gd["venue"].get("timeZone") or {}).get("tz", ""),
-        "linescore": {
-            "inning": ls.get("currentInning"),
-            "state": ls.get("inningState", ""),
-            "away_runs": (ls.get("teams", {}).get("away", {}) or {}).get("runs"),
-            "home_runs": (ls.get("teams", {}).get("home", {}) or {}).get("runs"),
-        },
         "umpires": umpires(game, live),
         "moves": moves,
         "index": {str(k): v for k, v in idx.items()},
@@ -439,7 +432,7 @@ def rule(ch="-"):
     return ch * W
 
 
-def render_text(d, color=True):
+def render_text(d, color=True, show_moves=False):
     c = C(color and sys.stdout.isatty())
     L = []
     a, h = d["away"], d["home"]
@@ -469,16 +462,6 @@ def render_text(d, color=True):
         L.append("  %s %s" % (c.dim("           "), c.dim(here + " Chicago time")))
     L.append("  %s %s" % (c.dim("STATUS     "), d["status"]))
 
-    ls = d["linescore"]
-    if ls["away_runs"] is not None and d["abstract"] in ("Live", "Final"):
-        if d["abstract"] == "Final":
-            where = "Final"
-        else:
-            where = "%s %s" % (ls["state"], ls["inning"])
-        L.append("  %s %s" % (c.dim("SCORE      "),
-                              c.b("%s %d - %d %s   %s" % (a["abbrev"], ls["away_runs"],
-                                                          ls["home_runs"], h["abbrev"],
-                                                          where))))
     L.append("")
 
     L.append(c.dim(rule()))
@@ -511,6 +494,8 @@ def render_text(d, color=True):
                                c.dim(side["record"] or "")))
         L.append("")
         pitchers = side.get("pitchers") or []
+        if not show_moves:
+            pitchers = pitchers[:1]   # relievers reveal how the game is going
         if pitchers:
             for i, p in enumerate(pitchers):
                 tag = "SP" if i == 0 else "RP"
@@ -532,7 +517,7 @@ def render_text(d, color=True):
                 L.append("    %d  %s  %-26s %2s %-3s  %s"
                          % (b["slot"], str(b["num"]).rjust(3), b["name"][:26],
                             b["pos_num"], b["pos"], b["bats"]))
-                for m in by.get(b["slot"], []):
+                for m in (by.get(b["slot"], []) if show_moves else []):
                     info = d["index"].get(str(m["pid"]), {})
                     verb = {"pinch_hit": "PH", "pinch_run": "PR",
                             "defensive": "in"}.get(m["kind"],
@@ -548,7 +533,7 @@ def render_text(d, color=True):
                            "(typically 2-3 hours before first pitch)."))
         L.append("")
 
-    if d["moves"]:
+    if d["moves"] and show_moves:
         L.append(c.dim(rule()))
         L.append("  %s  %s" % (c.b("IN-GAME MOVES"), c.dim("(%d)" % len(d["moves"]))))
         L.append("")
@@ -663,27 +648,17 @@ border-radius:10px;padding:10px 12px;font-size:13.5px;margin-top:10px}
 """
 
 
-def render_html(d):
+def render_html(d, show_moves=False):
     a, h = d["away"], d["home"]
-    ls = d["linescore"]
-    live_or_final = d["abstract"] in ("Live", "Final") and ls["away_runs"] is not None
-
-    if live_or_final:
-        where = "Final" if d["abstract"] == "Final" else "%s %s" % (ls["state"], ls["inning"])
-        time_block = (
-            '<div class="score">'
-            '<div class="t"><div class="ab">%s</div><div class="r">%s</div></div>'
-            '<div class="inn">%s</div>'
-            '<div class="t"><div class="ab">%s</div><div class="r">%s</div></div>'
-            '</div>' % (esc(a["abbrev"]), ls["away_runs"], esc(where),
-                        esc(h["abbrev"]), ls["home_runs"]))
-    else:
-        t = "TBD" if d["start_tbd"] else fmt_time(d["game_datetime"], d["venue_tz"])
-        time_block = ('<div class="fp">%s <small>%s</small></div>'
-                      % (esc(t), esc(d["venue_tz_abbr"])))
+    # First pitch always shows -- it never reveals anything about the outcome.
+    t = "TBD" if d["start_tbd"] else fmt_time(d["game_datetime"], d["venue_tz"])
+    time_block = ('<div class="fp">%s <small>%s</small></div>'
+                  % (esc(t), esc(d["venue_tz_abbr"])))
 
     def side_block(s, label):
         pitchers = s.get("pitchers") or []
+        if not show_moves:
+            pitchers = pitchers[:1]
         if pitchers:
             rows = []
             for i, p in enumerate(pitchers):
@@ -711,7 +686,7 @@ def render_html(d):
                     '<td class="bt">%s</td></tr>'
                     % (b["slot"], esc(b["num"]), esc(b["name"]),
                        esc(b["pos_num"]), esc(b["pos"]), esc(b["bats"])))
-                for m in by.get(b["slot"], []):
+                for m in (by.get(b["slot"], []) if show_moves else []):
                     info = d["index"].get(str(m["pid"]), {})
                     verb = {"pinch_hit": "PH", "pinch_run": "PR",
                             "defensive": "in"}.get(m["kind"], "to %s" % m["pos"])
@@ -754,7 +729,7 @@ def render_html(d):
         umps = ('<div class="empty">Umpires not posted yet &mdash; '
                 'they usually appear alongside the lineups.</div>')
 
-    if d["moves"]:
+    if d["moves"] and show_moves:
         rows = []
         for m in d["moves"]:
             where_s, abbrev, tag, body = move_line(d, m)
@@ -826,6 +801,9 @@ def main():
                     help="with --watch, stop once lineups and umpires are posted")
     ap.add_argument("--interval", type=int, default=0,
                     help="seconds between polls (default: 60 pregame, 30 in-game)")
+    ap.add_argument("--show-moves", action="store_true",
+                    help="reveal in-game moves (relievers, pinch-hitters, subs). "
+                         "Hidden by default so a recorded game isn't spoiled.")
     ap.add_argument("--quiet", action="store_true", help="suppress the printed sheet")
     ap.add_argument("--no-color", action="store_true", help="plain text output")
     args = ap.parse_args()
@@ -846,11 +824,15 @@ def main():
 
         if seen is None:
             if not args.quiet:
-                print(render_text(d, color=not args.no_color))
+                print(render_text(d, color=not args.no_color,
+                                  show_moves=args.show_moves))
+            if args.watch and not args.show_moves and d["moves"]:
+                print(c.dim("  (in-game moves hidden -- pass --show-moves to see them)"),
+                      file=sys.stderr)
             seen = len(d["moves"])
         else:
-            # in watch mode, only announce what's new
-            new = d["moves"][seen:]
+            # in watch mode, only announce what's new -- and only if asked
+            new = d["moves"][seen:] if args.show_moves else []
             for m in new:
                 where, abbrev, tag, body = move_line(d, m)
                 print("  %s %-4s %-4s %s" % (c.grn("+"), where, abbrev, body),
@@ -859,7 +841,7 @@ def main():
 
         if args.html:
             with open(args.html, "w", encoding="utf-8") as f:
-                f.write(render_html(d))
+                f.write(render_html(d, show_moves=args.show_moves))
             if not args.watch:
                 print("\nHTML snapshot -> %s" % args.html, file=sys.stderr)
         if args.json:

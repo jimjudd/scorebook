@@ -92,11 +92,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .badge.proj{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-ink)}
 
 /* live score strip */
-.score{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:12px}
-.score .t{text-align:center;min-width:74px}
-.score .ab{font-size:11.5px;font-weight:800;letter-spacing:.08em;color:var(--muted)}
-.score .r{font-size:38px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
-.score .inn{font-size:13px;color:var(--muted);font-weight:700;min-width:56px}
+/* spoiler gate */
+.gate{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel);
+  border:1px dashed var(--line);border-radius:var(--radius);padding:12px 14px;margin-top:12px}
+.gate .g-txt{font-size:13.5px;color:var(--muted);flex:1;min-width:180px}
+.gate .g-txt b{color:var(--ink);font-weight:700}
+.gate button{font-size:14px;font-weight:700;padding:8px 14px;min-height:38px}
 
 /* ---------- grids ---------- */
 .kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -190,7 +191,8 @@ tr.subrow .poschip{font-size:12px;font-weight:700}
 
   <div class="foot">
     Data: MLB Stats API (statsapi.mlb.com) · unofficial, for personal scorekeeping.<br>
-    Lineups &amp; umpires post ~2–3 hrs before first pitch. Substitutions appear live.
+    Lineups &amp; umpires post ~2–3 hrs before first pitch.<br>
+    No scores anywhere. In-game moves stay hidden until you ask, per game.
   </div>
 </div>
 
@@ -250,7 +252,7 @@ function posPair(position){
    ======================================================================= */
 
 function findGame(dateStr){
-  var hyd = "hydrate=probablePitcher,team,venue(timezone),linescore";
+  var hyd = "hydrate=probablePitcher,team,venue(timezone)";
   return getJSON("/api/v1/schedule?sportId=1&teamId="+TEAM_ID+"&date="+dateStr+"&"+hyd)
     .then(function(sched){
       var games = collectGames(sched);
@@ -503,7 +505,6 @@ function loadAll(dateStr){
         away.manager = res[0];
         home.manager = res[1];
         var gd = live.gameData;
-        var ls = live.liveData.linescore || {};
         return {
           fetchedAt: Date.now(),
           gamePk: game.gamePk,
@@ -518,12 +519,6 @@ function loadAll(dateStr){
           venue: gd.venue.name,
           venueTZ: ((gd.venue.timeZone||{}).id) || "America/Chicago",
           venueTZAbbr: ((gd.venue.timeZone||{}).tz) || "",
-          linescore: {
-            inning: ls.currentInning || null,
-            state: ls.inningState || "",
-            awayRuns: ((ls.teams||{}).away||{}).runs,
-            homeRuns: ((ls.teams||{}).home||{}).runs
-          },
           umps: res[2],
           moves: moves,
           idx: idx,
@@ -552,9 +547,24 @@ function fmtDate(iso, tz){
 function localTZ(){
   try{ return Intl.DateTimeFormat().resolvedOptions().timeZone; }catch(e){ return "America/Chicago"; }
 }
-function ord(n){
-  var s = ["th","st","nd","rd"], v = n % 100;
-  return n + (s[(v-20)%10] || s[v] || s[0]);
+
+/* Spoiler gate.
+
+   Substitutions leak the state of a game: a starter pulled in the 3rd, five
+   relievers by the 6th, or a position player pitching all tell you how it's
+   going. So in-game content stays hidden until asked for.
+
+   The choice is stored per gamePk, not globally: revealing at the ballpark
+   doesn't un-hide a different game you're planning to watch on tape later. */
+function revealKey(pk){ return "cubs-scorebook-reveal-" + pk; }
+function isRevealed(pk){
+  try{ return localStorage.getItem(revealKey(pk)) === "1"; }catch(e){ return false; }
+}
+function setRevealed(pk, on){
+  try{
+    if(on) localStorage.setItem(revealKey(pk), "1");
+    else   localStorage.removeItem(revealKey(pk));
+  }catch(e){}
 }
 
 /* Substitution rows, keyed by the batting slot they entered. */
@@ -585,7 +595,7 @@ function subRow(m, idx){
   '</tr>';
 }
 
-function lineupTable(side, d){
+function lineupTable(side, d, reveal){
   if(!side.batters.length){
     return '<div class="empty">Lineup not posted yet. Usually goes up 2–3 hours '+
            'before first pitch — hit Refresh.</div>';
@@ -599,7 +609,7 @@ function lineupTable(side, d){
       '<td class="c-pos"><span class="poschip">'+esc(b.posNum)+' '+esc(b.posAbbr)+'</span></td>'+
       '<td class="c-bt">'+esc(b.bats)+'</td>'+
     '</tr>';
-    (by[b.slot]||[]).forEach(function(m){ r += subRow(m, d.idx); });
+    if(reveal) (by[b.slot]||[]).forEach(function(m){ r += subRow(m, d.idx); });
     return r;
   }).join("");
   return '<div class="tscroll"><table><thead><tr>'+
@@ -608,9 +618,10 @@ function lineupTable(side, d){
     '</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 
-function pitcherList(side, d){
+function pitcherList(side, d, reveal){
   var ps = side.pitchers || [];
   if(!ps.length) return '<div class="empty">Starter not announced.</div>';
+  if(!reveal) ps = ps.slice(0, 1);   // relievers reveal how the game is going
   var live = d.abstract === "Live";
   var rows = ps.map(function(p, i){
     var isLast = (i === ps.length - 1);
@@ -629,7 +640,7 @@ function pitcherList(side, d){
   return '<div class="pit">'+rows+'</div>';
 }
 
-function sideCard(side, label, d){
+function sideCard(side, label, d, reveal){
   return '<div class="card">'+
     '<h2>'+esc(label)+' · '+esc(side.name)+
       (side.record ? ' <span class="rec">'+esc(side.record)+'</span>' : '')+
@@ -637,15 +648,15 @@ function sideCard(side, label, d){
     '<div class="body">'+
       '<div class="lbl">Pitchers</div>'+
       '<div style="height:7px"></div>'+
-      pitcherList(side, d)+
+      pitcherList(side, d, reveal)+
       '<div style="height:14px"></div>'+
-      lineupTable(side, d)+
+      lineupTable(side, d, reveal)+
     '</div>'+
   '</div>';
 }
 
-function movesCard(d){
-  if(!d.moves.length) return "";
+function movesCard(d, reveal){
+  if(!reveal || !d.moves.length) return "";
   var rows = d.moves.map(function(m){
     var info = d.idx[m.pid] || {};
     var out  = m.replacedId ? (d.idx[m.replacedId]||{}).name : null;
@@ -692,22 +703,8 @@ function render(d, meta){
                            : '<span class="badge">'+esc(isFinal ? "Final" : (d.status||"Scheduled"))+'</span>';
   var dhNote = d.doubleHeader ? ' <span class="badge">Game '+d.gameNumber+'</span>' : '';
 
-  var ls = d.linescore || {};
-  var scoreStrip = "";
-  if((isLive || isFinal) && ls.awayRuns != null){
-    var innTxt = isFinal ? "Final"
-               : (ls.state ? esc(ls.state.slice(0,3)).toUpperCase()+" "+ord(ls.inning) : "");
-    scoreStrip =
-      '<div class="score">'+
-        '<div class="t"><div class="ab">'+esc(d.away.abbrev)+'</div><div class="r">'+ls.awayRuns+'</div></div>'+
-        '<div class="inn">'+innTxt+'</div>'+
-        '<div class="t"><div class="ab">'+esc(d.home.abbrev)+'</div><div class="r">'+ls.homeRuns+'</div></div>'+
-      '</div>';
-  }
-
-  var timeBlock = (isLive || isFinal)
-    ? ''
-    : '<div class="firstpitch">'+ (d.startTBD ? "TBD" : esc(venueTime)) +
+  // First pitch always shows -- it never reveals anything about the outcome.
+  var timeBlock = '<div class="firstpitch">'+ (d.startTBD ? "TBD" : esc(venueTime)) +
         (d.venueTZAbbr && !d.startTBD
           ? ' <span style="font-size:16px;color:var(--muted)">'+esc(d.venueTZAbbr)+'</span>' : '')+
       '</div>'+
@@ -719,7 +716,7 @@ function render(d, meta){
     '<div class="matchup">'+esc(d.away.shortName)+'<span class="at">@</span>'+esc(d.home.shortName)+'</div>'+
     '<div class="park">'+esc(d.venue)+'</div>'+
     '<div class="park">'+esc(fmtDate(d.gameDateISO, d.venueTZ))+' · '+statusBadge+dhNote+'</div>'+
-    timeBlock + scoreStrip +
+    timeBlock +
   '</div>';
 
   var info = '<div class="card"><h2>Teams</h2><div class="body"><div class="kv">'+
@@ -758,11 +755,31 @@ function render(d, meta){
       '. Showing the next one: <strong>'+esc(d.fellBackTo)+'</strong>.</div>'
     : '';
 
+  var reveal = isRevealed(d.gamePk);
+  // Is there anything to reveal? Relievers count -- a bullpen tells a story.
+  var hasInGame = d.moves.length > 0
+               || (d.away.pitchers||[]).length > 1
+               || (d.home.pitchers||[]).length > 1;
+
+  var gate = "";
+  if(hasInGame && !reveal){
+    gate = '<div class="gate">'+
+      '<div class="g-txt"><b>In-game moves hidden.</b> Substitutions and relief '+
+      'pitchers give away how the game is going.</div>'+
+      '<button data-reveal="1">Show moves</button>'+
+    '</div>';
+  }else if(reveal){
+    gate = '<div class="gate">'+
+      '<div class="g-txt">Showing in-game moves for this game.</div>'+
+      '<button data-reveal="0">Hide</button>'+
+    '</div>';
+  }
+
   $("content").innerHTML =
-    fellBack + hero + info + umps +
-    sideCard(d.away, "Away", d) +
-    sideCard(d.home, "Home", d) +
-    movesCard(d);
+    fellBack + hero + info + umps + gate +
+    sideCard(d.away, "Away", d, reveal) +
+    sideCard(d.home, "Home", d, reveal) +
+    movesCard(d, reveal);
 }
 
 /* =======================================================================
@@ -811,7 +828,9 @@ function refresh(manual){
     state.data = d; state.lastError = null;
     saveCache(d, state.date);
     render(d, { requestedDate: state.date });
-    var newMoves = (prevMoves != null && d.moves.length > prevMoves)
+    // Only mention new moves if this game is already un-hidden -- otherwise
+    // "3 new moves" is itself a hint that something is happening.
+    var newMoves = (isRevealed(d.gamePk) && prevMoves != null && d.moves.length > prevMoves)
       ? " · " + (d.moves.length - prevMoves) + " new move" +
         (d.moves.length - prevMoves > 1 ? "s" : "")
       : "";
@@ -881,6 +900,16 @@ function setDate(dateStr, push){
   if(cached) render(cached, { requestedDate: dateStr });
   refresh(false);
 }
+
+$("content").addEventListener("click", function(e){
+  var el = e.target;
+  while(el && el !== this && !(el.getAttribute && el.getAttribute("data-reveal"))){
+    el = el.parentNode;
+  }
+  if(!el || el === this || !state.data) return;
+  setRevealed(state.data.gamePk, el.getAttribute("data-reveal") === "1");
+  render(state.data, { requestedDate: state.date });
+});
 
 $("btnRefresh").addEventListener("click", function(){ refresh(true); });
 $("btnToday").addEventListener("click", function(){ setDate(todayInChicago(), true); });
