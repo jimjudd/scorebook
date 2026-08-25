@@ -4,8 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cubs Scorebook</title>
-<meta http-equiv="refresh" content="0; url=scorebook.html">
 <link rel="canonical" href="scorebook.html">
+<!-- Forward any ?date=… / #hash along with the redirect. location.replace
+     keeps this hop out of history, so Back works normally from the scorebook. -->
+<script>location.replace("scorebook.html" + location.search + location.hash);</script>
+<noscript><meta http-equiv="refresh" content="0; url=scorebook.html"></noscript>
 </head>
 <body>
 <p>Redirecting to <a href="scorebook.html">the scorebook</a>&hellip;</p>
