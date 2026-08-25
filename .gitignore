@@ -1,0 +1,9 @@
+# generated snapshot — regenerate with: ./scorebook.py --quiet --html snapshot.html
+snapshot.html
+snapshot-*.html
+
+# local editor / tooling
+.claude/
+__pycache__/
+*.pyc
+.DS_Store

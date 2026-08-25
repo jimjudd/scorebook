@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e3386">
+<title>Cubs Scorebook Prefill</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230e3386'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='%23fff' font-family='Helvetica,Arial' font-weight='bold'%3EC%3C/text%3E%3C/svg%3E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#14161a; --muted:#5d6470; --line:#d9dce2;
+  --cubs:#0e3386; --cubs-red:#cc3433; --accent:#0e3386; --sub:#0f6b4f;
+  --warn-bg:#fdf3d8; --warn-ink:#7a5a05; --warn-line:#e6cf94;
+  --ok:#1d7a43; --stale:#a8551a;
+  --radius:12px;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#101216; --panel:#191d24; --ink:#eef1f5; --muted:#9aa3b0; --line:#2b313b;
+    --cubs:#5b8ce8; --cubs-red:#e8615f; --accent:#5b8ce8; --sub:#4fbf95;
+    --warn-bg:#332a10; --warn-ink:#e5c76b; --warn-line:#5a4a1c;
+    --ok:#4dbd7b; --stale:#e0964f;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101216; --panel:#191d24; --ink:#eef1f5; --muted:#9aa3b0; --line:#2b313b;
+  --cubs:#5b8ce8; --cubs-red:#e8615f; --accent:#5b8ce8; --sub:#4fbf95;
+  --warn-bg:#332a10; --warn-ink:#e5c76b; --warn-line:#5a4a1c;
+  --ok:#4dbd7b; --stale:#e0964f;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--sans);
+  font-size:16px; line-height:1.4; -webkit-text-size-adjust:100%;
+  padding:0 0 env(safe-area-inset-bottom);
+}
+.wrap{max-width:760px;margin:0 auto;padding:12px 12px 90px}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky; top:0; z-index:20; background:var(--bg);
+  padding:8px 0 10px; border-bottom:1px solid var(--line);
+  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+  padding-top:calc(8px + env(safe-area-inset-top));
+}
+.brand{font-weight:800;letter-spacing:-.02em;color:var(--cubs);font-size:15px;margin-right:auto}
+button, select, input[type=date]{
+  font-family:var(--sans); font-size:15px; color:var(--ink);
+  background:var(--panel); border:1px solid var(--line); border-radius:10px;
+  padding:9px 12px; min-height:42px;
+}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+button.primary{background:var(--cubs);border-color:var(--cubs);color:#fff;font-weight:700}
+button:active{transform:scale(.97)}
+button[disabled]{opacity:.55}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.status{width:100%;display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.dot.stale{background:var(--stale)} .dot.err{background:var(--cubs-red)}
+.spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);
+  border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}button:active{transform:none}}
+
+/* ---------- panels ---------- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  margin-top:12px;overflow:hidden}
+.card h2{
+  margin:0;padding:10px 14px;font-size:11.5px;font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;
+}
+.card h2 .rec{color:var(--ink);font-weight:700}
+.card .body{padding:12px 14px}
+
+.hero{text-align:center;padding:16px 14px}
+.matchup{font-size:25px;font-weight:800;letter-spacing:-.02em;line-height:1.2;text-wrap:balance}
+.matchup .at{color:var(--muted);font-weight:600;font-size:19px;margin:0 6px}
+.park{font-size:15px;color:var(--muted);margin-top:5px}
+.firstpitch{font-size:34px;font-weight:800;margin-top:10px;font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em}
+.fp-alt{font-size:13px;color:var(--muted);margin-top:2px}
+.badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;
+  text-transform:uppercase;padding:3px 8px;border-radius:99px;border:1px solid var(--line);
+  color:var(--muted);vertical-align:middle}
+.badge.live{background:var(--cubs-red);border-color:var(--cubs-red);color:#fff}
+.badge.proj{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-ink)}
+
+/* live score strip */
+.score{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:12px}
+.score .t{text-align:center;min-width:74px}
+.score .ab{font-size:11.5px;font-weight:800;letter-spacing:.08em;color:var(--muted)}
+.score .r{font-size:38px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.score .inn{font-size:13px;color:var(--muted);font-weight:700;min-width:56px}
+
+/* ---------- grids ---------- */
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kv .cell{min-width:0}
+.lbl{font-size:10.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.val{font-size:16px;font-weight:650;margin-top:2px;overflow-wrap:break-word}
+.val .sub{font-weight:400;color:var(--muted);font-size:13.5px}
+
+/* ---------- lineup ---------- */
+.tscroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:15.5px}
+th{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;
+   font-weight:800;padding:6px 4px;border-bottom:1px solid var(--line)}
+td{padding:8px 4px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tr.subrow td{padding-top:5px;padding-bottom:7px;border-bottom:0}
+tr.subrow + tr.starter td{border-top:1px solid var(--line)}
+tr.subrow .c-name{font-weight:600;color:var(--sub);font-size:14.5px}
+.arrow{color:var(--sub);font-weight:800;margin-right:3px}
+.when{color:var(--muted);font-weight:600;font-size:12px;font-family:var(--mono);margin-left:5px;
+  white-space:nowrap}
+.c-ord{width:22px;font-family:var(--mono);font-weight:700;color:var(--muted);text-align:center}
+.c-num{width:38px;font-family:var(--mono);font-weight:800;font-size:17px;text-align:right;
+  padding-right:8px;font-variant-numeric:tabular-nums}
+tr.subrow .c-num{font-size:14.5px;font-weight:700;color:var(--sub)}
+.c-name{font-weight:600}
+.c-pos{width:56px;text-align:center}
+.c-bt{width:26px;text-align:center;font-family:var(--mono);color:var(--muted);font-size:13.5px}
+.poschip{display:inline-block;font-family:var(--mono);font-weight:800;font-size:13px;
+  background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px 6px;min-width:34px}
+tr.subrow .poschip{font-size:12px;font-weight:700}
+
+/* ---------- pitchers ---------- */
+.pit{display:flex;flex-direction:column;gap:7px}
+.pit .row{display:flex;align-items:baseline;gap:9px}
+.pit .tag{font-family:var(--mono);font-size:10.5px;font-weight:800;color:var(--muted);
+  width:22px;flex:none;letter-spacing:.04em}
+.pit .n{font-family:var(--mono);font-weight:800;font-size:18px;font-variant-numeric:tabular-nums;
+  min-width:30px;text-align:right}
+.pit .nm{font-weight:700;font-size:16.5px}
+.pit .meta{color:var(--muted);font-size:13px;margin-left:auto;font-family:var(--mono);white-space:nowrap}
+.pit .row.relief .n,.pit .row.relief .nm{color:var(--sub)}
+.pit .row.cur .nm::after{content:" ●";color:var(--cubs-red);font-size:11px;vertical-align:middle}
+
+/* ---------- moves log ---------- */
+.moves{display:flex;flex-direction:column;gap:0}
+.mv{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.mv:last-child{border-bottom:0}
+.mv .inn{font-family:var(--mono);font-weight:800;font-size:13px;color:var(--muted);
+  width:34px;flex:none;letter-spacing:.02em}
+.mv .team{font-family:var(--mono);font-weight:800;font-size:11px;padding:2px 5px;border-radius:5px;
+  border:1px solid var(--line);color:var(--muted);flex:none}
+.mv .txt{font-size:14.5px;min-width:0}
+.mv .txt b{font-weight:700}
+.mv .kind{font-family:var(--mono);font-size:10.5px;font-weight:800;color:var(--sub);
+  letter-spacing:.06em;margin-right:5px}
+.mv .out{color:var(--muted)}
+
+.note{background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-ink);
+  border-radius:10px;padding:10px 12px;font-size:13.5px;margin-top:10px}
+.empty{color:var(--muted);font-style:italic;padding:14px 2px;font-size:14.5px}
+.err{background:var(--panel);border:1px solid var(--cubs-red);border-radius:var(--radius);
+  padding:14px;margin-top:12px;color:var(--cubs-red);font-size:14.5px}
+.foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:18px;line-height:1.6}
+
+.fab{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  background:linear-gradient(to top,var(--bg) 62%,transparent);z-index:30;display:flex;justify-content:center}
+.fab button{width:100%;max-width:736px;font-size:16px;font-weight:800;padding:14px;min-height:52px}
+
+@media print{
+  .topbar,.fab,.foot{display:none}
+  body{background:#fff;font-size:11pt}
+  .card{break-inside:avoid;border-color:#999}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <span class="brand">CUBS SCOREBOOK</span>
+    <input type="date" id="datePick" aria-label="Game date">
+    <button id="btnToday" title="Jump to today">Today</button>
+    <div class="status">
+      <span class="dot" id="dot"></span>
+      <span id="statusText">Loading…</span>
+    </div>
+  </div>
+
+  <div id="content"></div>
+
+  <div class="foot">
+    Data: MLB Stats API (statsapi.mlb.com) · unofficial, for personal scorekeeping.<br>
+    Lineups &amp; umpires post ~2–3 hrs before first pitch. Substitutions appear live.
+  </div>
+</div>
+
+<div class="fab"><button class="primary" id="btnRefresh">↻ Refresh now</button></div>
+
+<script>
+"use strict";
+/* =======================================================================
+   Cubs Scorebook — Numbers Game #22 prefill + live substitution tracking
+   Pure client-side. Talks straight to statsapi.mlb.com (CORS: *).
+   ======================================================================= */
+
+var TEAM_ID   = 112;                 // Chicago Cubs
+var API       = "https://statsapi.mlb.com";
+var CACHE_KEY = "cubs-scorebook-cache-v2";
+
+function $(id){ return document.getElementById(id); }
+function esc(s){
+  return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+
+/* Fetch JSON with a hard timeout — ballpark wifi is not your friend. */
+function getJSON(path, ms){
+  ms = ms || 12000;
+  var ctl = new AbortController();
+  var timer = setTimeout(function(){ ctl.abort(); }, ms);
+  return fetch(API + path, { signal: ctl.signal, cache: "no-store" })
+    .then(function(r){
+      if(!r.ok) throw new Error("HTTP " + r.status + " on " + path);
+      return r.json();
+    })
+    .finally(function(){ clearTimeout(timer); });
+}
+
+function todayInChicago(){
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone:"America/Chicago", year:"numeric", month:"2-digit", day:"2-digit"
+  }).format(new Date());
+}
+
+/* Position code -> [scorebook number, abbreviation] */
+var POS = {
+  "1":["1","P"],  "2":["2","C"],  "3":["3","1B"], "4":["4","2B"], "5":["5","3B"],
+  "6":["6","SS"], "7":["7","LF"], "8":["8","CF"], "9":["9","RF"], "10":["D","DH"],
+  "11":["–","PH"],"12":["–","PR"]
+};
+function posPair(position){
+  if(!position) return ["–","--"];
+  var p = POS[String(position.code)];
+  return p || [String(position.code||"?"), position.abbreviation || "?"];
+}
+
+/* =======================================================================
+   DATA LAYER
+   ======================================================================= */
+
+function findGame(dateStr){
+  var hyd = "hydrate=probablePitcher,team,venue(timezone),linescore";
+  return getJSON("/api/v1/schedule?sportId=1&teamId="+TEAM_ID+"&date="+dateStr+"&"+hyd)
+    .then(function(sched){
+      var games = collectGames(sched);
+      if(games.length) return { game: pickGame(games), fellBackTo:null };
+      var end = new Date(dateStr + "T12:00:00Z");
+      end.setUTCDate(end.getUTCDate() + 10);
+      return getJSON("/api/v1/schedule?sportId=1&teamId="+TEAM_ID+
+                     "&startDate="+dateStr+"&endDate="+end.toISOString().slice(0,10)+"&"+hyd)
+        .then(function(s2){
+          var g2 = collectGames(s2);
+          if(!g2.length) throw new Error("No Cubs game found on "+dateStr+" or in the next 10 days.");
+          return { game: g2[0], fellBackTo: g2[0].officialDate };
+        });
+    });
+}
+function collectGames(sched){
+  var out = [];
+  (sched.dates||[]).forEach(function(d){ (d.games||[]).forEach(function(g){ out.push(g); }); });
+  out.sort(function(a,b){ return new Date(a.gameDate) - new Date(b.gameDate); });
+  return out;
+}
+function pickGame(games){
+  for(var i=0;i<games.length;i++){
+    if((games[i].status||{}).abstractGameState !== "Final") return games[i];
+  }
+  return games[games.length-1];
+}
+
+var mgrCache = {};
+function getManager(teamId){
+  if(mgrCache[teamId]) return Promise.resolve(mgrCache[teamId]);
+  return getJSON("/api/v1/teams/"+teamId+"/coaches").then(function(d){
+    var m = (d.roster||[]).filter(function(r){ return r.jobId === "MNGR"; })[0];
+    mgrCache[teamId] = m ? m.person.fullName : null;
+    return mgrCache[teamId];
+  }).catch(function(){ return null; });
+}
+
+function mapOfficials(list){
+  var m = {};
+  list.forEach(function(o){
+    var k = {"Home Plate":"HP","First Base":"1B","Second Base":"2B","Third Base":"3B"}[o.officialType];
+    if(k) m[k] = o.official.fullName;
+  });
+  return m;
+}
+
+/* Posted crew, else project by rotating the previous game of this series.
+   MLB rotates one position per game: HP<-1B, 1B<-2B, 2B<-3B, 3B<-HP.
+   Crews change between series, so only rotate within the same matchup. */
+function getUmpires(game, live){
+  var posted = (live.liveData && live.liveData.boxscore && live.liveData.boxscore.officials) || [];
+  if(posted.length) return Promise.resolve({ crew: mapOfficials(posted), projected:false });
+
+  var d = new Date(game.gameDate);
+  var start = new Date(d.getTime() - 6*86400000).toISOString().slice(0,10);
+  var end   = new Date(d.getTime() - 1*86400000).toISOString().slice(0,10);
+  var away = game.teams.away.team.id, home = game.teams.home.team.id;
+  return getJSON("/api/v1/schedule?sportId=1&teamId="+TEAM_ID+"&startDate="+start+"&endDate="+end)
+    .then(function(s){
+      var prior = collectGames(s).filter(function(g){
+        var a = g.teams.away.team.id, h = g.teams.home.team.id;
+        return ((a===away && h===home) || (a===home && h===away))
+            && (g.status||{}).abstractGameState === "Final";
+      });
+      if(!prior.length) return { crew:null, projected:false };
+      var last = prior[prior.length-1];
+      return getJSON("/api/v1/game/"+last.gamePk+"/boxscore").then(function(b){
+        var prev = mapOfficials(b.officials||[]);
+        if(!prev.HP || !prev["1B"] || !prev["2B"] || !prev["3B"]) return { crew:null, projected:false };
+        return {
+          crew: { HP: prev["1B"], "1B": prev["2B"], "2B": prev["3B"], "3B": prev.HP },
+          projected: true, from: last.officialDate
+        };
+      });
+    }).catch(function(){ return { crew:null, projected:false }; });
+}
+
+/* One lookup for every player in the game: number, name, hand, side. */
+function playerIndex(live){
+  var idx = {};
+  ["away","home"].forEach(function(side){
+    var ps = (live.liveData.boxscore.teams[side]||{}).players || {};
+    Object.keys(ps).forEach(function(k){
+      var p = ps[k], id = (p.person||{}).id;
+      if(id==null) return;
+      idx[id] = idx[id] || {};
+      idx[id].num  = p.jerseyNumber || idx[id].num;
+      idx[id].side = side;
+      idx[id].name = idx[id].name || (p.person||{}).fullName;
+    });
+  });
+  var gp = live.gameData.players || {};
+  Object.keys(gp).forEach(function(k){
+    var p = gp[k];
+    idx[p.id] = idx[p.id] || {};
+    idx[p.id].name   = p.fullName || idx[p.id].name;
+    idx[p.id].num    = idx[p.id].num || p.primaryNumber || "";
+    idx[p.id].bats   = (p.batSide||{}).code || "";
+    idx[p.id].throws = (p.pitchHand||{}).code || "";
+  });
+  return idx;
+}
+
+/* The nine who START. Each boxscore player carries battingOrder "S00" if they
+   started the slot and "S01"/"S02" if they replaced someone. The flat
+   battingOrder[] array instead tracks the slot's *current* occupant, so it
+   reports pinch-hitters once a game is underway. */
+function startingNine(box){
+  var out = [], players = box.players || {};
+  Object.keys(players).forEach(function(key){
+    var p = players[key], bo = p.battingOrder;
+    if(bo && /00$/.test(String(bo))){
+      out.push({ slot: parseInt(bo,10)/100, pid: (p.person||{}).id, bx: p });
+    }
+  });
+  out.sort(function(a,b){ return a.slot - b.slot; });
+  if(out.length) return out;
+  return (box.battingOrder||[]).map(function(pid,i){
+    return { slot:i+1, pid:pid, bx: players["ID"+pid] || {} };
+  });
+}
+
+/* Every substitution in the game, in order.
+
+   Team attribution: pitching and defensive changes belong to the FIELDING
+   team (home in the top half, away in the bottom); offensive substitutions
+   — pinch-hitters and pinch-runners — belong to the BATTING team. */
+function buildMoves(live, idx){
+  var plays = ((live.liveData||{}).plays||{}).allPlays || [];
+  var moves = [];
+  plays.forEach(function(p){
+    var ab = p.about || {};
+    (p.playEvents||[]).forEach(function(e){
+      if(!e.isSubstitution) return;
+      var det = e.details || {};
+      var et  = det.eventType;
+      var isTop = !!ab.isTopInning;
+      var team = (et === "offensive_substitution") ? (isTop ? "away" : "home")
+                                                   : (isTop ? "home" : "away");
+      var pp = posPair(e.position);
+      var kind = et === "pitching_substitution"  ? "pitching"
+               : et === "offensive_substitution" ? (pp[1] === "PR" ? "pinch_run" : "pinch_hit")
+               : et === "defensive_substitution" ? "defensive"
+               :                                   "switch";
+      moves.push({
+        inning: ab.inning,
+        isTop: isTop,
+        half: isTop ? "T" : "B",
+        team: team,
+        kind: kind,
+        pid: (e.player||{}).id,
+        replacedId: (e.replacedPlayer||{}).id || null,
+        posNum: pp[0], posAbbr: pp[1],
+        slot: e.battingOrder ? Math.floor(parseInt(e.battingOrder,10)/100) : null,
+        desc: det.description || ""
+      });
+    });
+  });
+  return moves;
+}
+
+/* Pitchers used by one team, in order. Pitching substitutions never carry a
+   replacedPlayer, so the man they relieved is simply the previous pitcher. */
+function pitchersUsed(side, moves, idx){
+  var list = [];
+  if(side.sp) list.push({ pid: side.sp.pid, num: side.sp.num, name: side.sp.name,
+                          throws: side.sp.throws, entered: null });
+  moves.filter(function(m){ return m.kind === "pitching" && m.team === side.which; })
+       .forEach(function(m){
+    var info = idx[m.pid] || {};
+    list.push({
+      pid: m.pid,
+      num: info.num || "",
+      name: info.name || "—",
+      throws: info.throws || "",
+      entered: { inning: m.inning, half: m.half },
+      relieved: list.length ? list[list.length-1].name : null
+    });
+  });
+  return list;
+}
+
+function buildSide(live, which, idx){
+  var gd  = live.gameData;
+  var box = live.liveData.boxscore.teams[which];
+  var team = gd.teams[which];
+
+  var batters = startingNine(box).map(function(st){
+    var bx  = st.bx;
+    var per = gd.players["ID"+st.pid] || {};
+    // allPositions[0] is where they STARTED; position mutates on substitution.
+    var pp  = posPair((bx.allPositions && bx.allPositions[0]) || bx.position);
+    return {
+      slot: st.slot,
+      pid: st.pid,
+      num:  bx.jerseyNumber || per.primaryNumber || "",
+      name: (per.fullName || (bx.person&&bx.person.fullName) || "—"),
+      posNum: pp[0], posAbbr: pp[1],
+      bats: ((per.batSide||{}).code) || ""
+    };
+  });
+
+  var probable = (gd.probablePitchers||{})[which];
+  var sp = null;
+  if(probable){
+    var sper = gd.players["ID"+probable.id] || {};
+    var sbox = box.players["ID"+probable.id] || {};
+    sp = {
+      pid: probable.id,
+      num: sbox.jerseyNumber || sper.primaryNumber || "",
+      name: probable.fullName,
+      throws: ((sper.pitchHand||{}).code) || ""
+    };
+  }
+
+  var rec = team.record || {};
+  return {
+    which: which,
+    id: team.id,
+    name: team.name,
+    shortName: team.teamName || team.shortName || team.name,
+    abbrev: team.abbreviation,
+    record: (rec.wins!=null && rec.losses!=null) ? (rec.wins+"-"+rec.losses) : null,
+    pct: rec.winningPercentage || (rec.leagueRecord||{}).pct || null,
+    batters: batters,
+    sp: sp
+  };
+}
+
+function loadAll(dateStr){
+  var found;
+  return findGame(dateStr)
+    .then(function(f){
+      found = f;
+      return getJSON("/api/v1.1/game/" + f.game.gamePk + "/feed/live", 25000);
+    })
+    .then(function(live){
+      var game = found.game;
+      var idx  = playerIndex(live);
+      var away = buildSide(live, "away", idx);
+      var home = buildSide(live, "home", idx);
+      var moves = buildMoves(live, idx);
+
+      away.pitchers = pitchersUsed(away, moves, idx);
+      home.pitchers = pitchersUsed(home, moves, idx);
+
+      return Promise.all([getManager(away.id), getManager(home.id), getUmpires(game, live)])
+      .then(function(res){
+        away.manager = res[0];
+        home.manager = res[1];
+        var gd = live.gameData;
+        var ls = live.liveData.linescore || {};
+        return {
+          fetchedAt: Date.now(),
+          gamePk: game.gamePk,
+          date: game.officialDate,
+          fellBackTo: found.fellBackTo,
+          status: (gd.status||{}).detailedState || "",
+          abstract: (gd.status||{}).abstractGameState || "",
+          startTBD: !!((gd.status||{}).startTimeTBD),
+          gameDateISO: gd.datetime.dateTime,
+          gameNumber: game.gameNumber || 1,
+          doubleHeader: game.doubleHeader && game.doubleHeader !== "N",
+          venue: gd.venue.name,
+          venueTZ: ((gd.venue.timeZone||{}).id) || "America/Chicago",
+          venueTZAbbr: ((gd.venue.timeZone||{}).tz) || "",
+          linescore: {
+            inning: ls.currentInning || null,
+            state: ls.inningState || "",
+            awayRuns: ((ls.teams||{}).away||{}).runs,
+            homeRuns: ((ls.teams||{}).home||{}).runs
+          },
+          umps: res[2],
+          moves: moves,
+          idx: idx,
+          away: away, home: home
+        };
+      });
+    });
+}
+
+/* =======================================================================
+   RENDER
+   ======================================================================= */
+
+function fmtTime(iso, tz){
+  try{
+    return new Intl.DateTimeFormat("en-US",{timeZone:tz,hour:"numeric",minute:"2-digit",hour12:true})
+      .format(new Date(iso));
+  }catch(e){ return "—"; }
+}
+function fmtDate(iso, tz){
+  try{
+    return new Intl.DateTimeFormat("en-US",
+      {timeZone:tz,weekday:"short",month:"short",day:"numeric",year:"numeric"}).format(new Date(iso));
+  }catch(e){ return ""; }
+}
+function localTZ(){
+  try{ return Intl.DateTimeFormat().resolvedOptions().timeZone; }catch(e){ return "America/Chicago"; }
+}
+function ord(n){
+  var s = ["th","st","nd","rd"], v = n % 100;
+  return n + (s[(v-20)%10] || s[v] || s[0]);
+}
+
+/* Substitution rows, keyed by the batting slot they entered. */
+function subsBySlot(d, which){
+  var by = {};
+  d.moves.filter(function(m){
+    return m.team === which && m.slot && m.kind !== "pitching";
+  }).forEach(function(m){
+    (by[m.slot] = by[m.slot] || []).push(m);
+  });
+  return by;
+}
+
+function subRow(m, idx){
+  var info = idx[m.pid] || {};
+  var verb = m.kind === "pinch_hit" ? "PH"
+           : m.kind === "pinch_run" ? "PR"
+           : m.kind === "switch"    ? "to " + m.posAbbr
+           :                          "in";
+  var when = m.half + m.inning;
+  return '<tr class="subrow">'+
+    '<td class="c-ord"></td>'+
+    '<td class="c-num">'+esc(info.num||"")+'</td>'+
+    '<td class="c-name"><span class="arrow">↳</span>'+esc(info.name||"—")+
+      '<span class="when">'+esc(verb)+' · '+esc(when)+'</span></td>'+
+    '<td class="c-pos"><span class="poschip">'+esc(m.posNum)+' '+esc(m.posAbbr)+'</span></td>'+
+    '<td class="c-bt">'+esc(info.bats||"")+'</td>'+
+  '</tr>';
+}
+
+function lineupTable(side, d){
+  if(!side.batters.length){
+    return '<div class="empty">Lineup not posted yet. Usually goes up 2–3 hours '+
+           'before first pitch — hit Refresh.</div>';
+  }
+  var by = subsBySlot(d, side.which);
+  var rows = side.batters.map(function(b){
+    var r = '<tr class="starter">'+
+      '<td class="c-ord">'+b.slot+'</td>'+
+      '<td class="c-num">'+esc(b.num)+'</td>'+
+      '<td class="c-name">'+esc(b.name)+'</td>'+
+      '<td class="c-pos"><span class="poschip">'+esc(b.posNum)+' '+esc(b.posAbbr)+'</span></td>'+
+      '<td class="c-bt">'+esc(b.bats)+'</td>'+
+    '</tr>';
+    (by[b.slot]||[]).forEach(function(m){ r += subRow(m, d.idx); });
+    return r;
+  }).join("");
+  return '<div class="tscroll"><table><thead><tr>'+
+    '<th class="c-ord"></th><th class="c-num">#</th><th>Batter</th>'+
+    '<th class="c-pos">Pos</th><th class="c-bt">B</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function pitcherList(side, d){
+  var ps = side.pitchers || [];
+  if(!ps.length) return '<div class="empty">Starter not announced.</div>';
+  var live = d.abstract === "Live";
+  var rows = ps.map(function(p, i){
+    var isLast = (i === ps.length - 1);
+    var cls = "row" + (i ? " relief" : "") + ((live && isLast && i) ? " cur" : "");
+    var meta = p.entered
+      ? "entered " + p.entered.half + p.entered.inning
+      : "starter";
+    return '<div class="'+cls+'">'+
+      '<span class="tag">'+(i ? "RP" : "SP")+'</span>'+
+      '<span class="n">'+esc(p.num)+'</span>'+
+      '<span class="nm">'+esc(p.name)+'</span>'+
+      (p.throws ? '<span class="meta">'+esc(p.throws)+'HP · '+esc(meta)+'</span>'
+                : '<span class="meta">'+esc(meta)+'</span>')+
+    '</div>';
+  }).join("");
+  return '<div class="pit">'+rows+'</div>';
+}
+
+function sideCard(side, label, d){
+  return '<div class="card">'+
+    '<h2>'+esc(label)+' · '+esc(side.name)+
+      (side.record ? ' <span class="rec">'+esc(side.record)+'</span>' : '')+
+    '</h2>'+
+    '<div class="body">'+
+      '<div class="lbl">Pitchers</div>'+
+      '<div style="height:7px"></div>'+
+      pitcherList(side, d)+
+      '<div style="height:14px"></div>'+
+      lineupTable(side, d)+
+    '</div>'+
+  '</div>';
+}
+
+function movesCard(d){
+  if(!d.moves.length) return "";
+  var rows = d.moves.map(function(m){
+    var info = d.idx[m.pid] || {};
+    var out  = m.replacedId ? (d.idx[m.replacedId]||{}).name : null;
+    var abbr = m[ "team" ] === "away" ? d.away.abbrev : d.home.abbrev;
+    var kind = m.kind === "pinch_hit" ? "PH"
+             : m.kind === "pinch_run" ? "PR"
+             : m.kind === "pitching"  ? "P"
+             : m.kind === "defensive" ? "DEF"
+             :                          "SWAP";
+    var txt;
+    if(m.kind === "pitching"){
+      var rel = null;
+      var used = (m.team === "away" ? d.away.pitchers : d.home.pitchers)
+                 .filter(function(p){ return p.pid === m.pid; })[0];
+      if(used && used.relieved) rel = used.relieved;
+      txt = '<b>'+esc(info.name||"—")+'</b> #'+esc(info.num||"")+
+            (rel ? ' <span class="out">relieves '+esc(rel)+'</span>' : '');
+    }else if(m.kind === "switch"){
+      txt = '<b>'+esc(info.name||"—")+'</b> <span class="out">moves to '+esc(m.posAbbr)+'</span>';
+    }else{
+      txt = '<b>'+esc(info.name||"—")+'</b> #'+esc(info.num||"")+
+            (out ? ' <span class="out">for '+esc(out)+'</span>' : '')+
+            (m.slot ? ' <span class="out">· slot '+m.slot+'</span>' : '');
+    }
+    return '<div class="mv">'+
+      '<span class="inn">'+esc(m.half + m.inning)+'</span>'+
+      '<span class="team">'+esc(abbr)+'</span>'+
+      '<span class="txt"><span class="kind">'+esc(kind)+'</span>'+txt+'</span>'+
+    '</div>';
+  }).join("");
+  return '<div class="card"><h2>In-Game Moves <span class="badge">'+d.moves.length+'</span></h2>'+
+         '<div class="body"><div class="moves">'+rows+'</div></div></div>';
+}
+
+function render(d, meta){
+  var tzLocal   = localTZ();
+  var venueTime = fmtTime(d.gameDateISO, d.venueTZ);
+  var localTime = fmtTime(d.gameDateISO, tzLocal);
+  var sameZone  = (venueTime === localTime);
+  var isLive    = d.abstract === "Live";
+  var isFinal   = d.abstract === "Final";
+
+  var statusBadge = isLive ? '<span class="badge live">'+esc(d.status)+'</span>'
+                           : '<span class="badge">'+esc(isFinal ? "Final" : (d.status||"Scheduled"))+'</span>';
+  var dhNote = d.doubleHeader ? ' <span class="badge">Game '+d.gameNumber+'</span>' : '';
+
+  var ls = d.linescore || {};
+  var scoreStrip = "";
+  if((isLive || isFinal) && ls.awayRuns != null){
+    var innTxt = isFinal ? "Final"
+               : (ls.state ? esc(ls.state.slice(0,3)).toUpperCase()+" "+ord(ls.inning) : "");
+    scoreStrip =
+      '<div class="score">'+
+        '<div class="t"><div class="ab">'+esc(d.away.abbrev)+'</div><div class="r">'+ls.awayRuns+'</div></div>'+
+        '<div class="inn">'+innTxt+'</div>'+
+        '<div class="t"><div class="ab">'+esc(d.home.abbrev)+'</div><div class="r">'+ls.homeRuns+'</div></div>'+
+      '</div>';
+  }
+
+  var timeBlock = (isLive || isFinal)
+    ? ''
+    : '<div class="firstpitch">'+ (d.startTBD ? "TBD" : esc(venueTime)) +
+        (d.venueTZAbbr && !d.startTBD
+          ? ' <span style="font-size:16px;color:var(--muted)">'+esc(d.venueTZAbbr)+'</span>' : '')+
+      '</div>'+
+      (!d.startTBD && !sameZone
+        ? '<div class="fp-alt">'+esc(localTime)+' your time</div>'
+        : '<div class="fp-alt">first pitch</div>');
+
+  var hero = '<div class="card hero">'+
+    '<div class="matchup">'+esc(d.away.shortName)+'<span class="at">@</span>'+esc(d.home.shortName)+'</div>'+
+    '<div class="park">'+esc(d.venue)+'</div>'+
+    '<div class="park">'+esc(fmtDate(d.gameDateISO, d.venueTZ))+' · '+statusBadge+dhNote+'</div>'+
+    timeBlock + scoreStrip +
+  '</div>';
+
+  var info = '<div class="card"><h2>Teams</h2><div class="body"><div class="kv">'+
+      '<div class="cell"><div class="lbl">Away Record</div><div class="val">'+
+        (d.away.record ? esc(d.away.record) : "—")+
+        (d.away.pct ? ' <span class="sub">'+esc(d.away.pct)+'</span>' : '')+'</div></div>'+
+      '<div class="cell"><div class="lbl">Home Record</div><div class="val">'+
+        (d.home.record ? esc(d.home.record) : "—")+
+        (d.home.pct ? ' <span class="sub">'+esc(d.home.pct)+'</span>' : '')+'</div></div>'+
+      '<div class="cell"><div class="lbl">Away Manager</div><div class="val">'+esc(d.away.manager||"—")+'</div></div>'+
+      '<div class="cell"><div class="lbl">Home Manager</div><div class="val">'+esc(d.home.manager||"—")+'</div></div>'+
+    '</div></div></div>';
+
+  var u = d.umps || {};
+  var umpBody;
+  if(u.crew){
+    umpBody = '<div class="kv">'+
+      ["HP","1B","2B","3B"].map(function(k){
+        return '<div class="cell"><div class="lbl">'+k+'</div><div class="val">'+esc(u.crew[k]||"—")+'</div></div>';
+      }).join("")+'</div>' +
+      (u.projected
+        ? '<div class="note"><strong>Projected crew.</strong> Not yet posted for this game — rotated '+
+          'forward from the '+esc(u.from||"previous")+' game of this series '+
+          '(HP←1B, 1B←2B, 2B←3B, 3B←HP). Verify before ink.</div>'
+        : '');
+  } else {
+    umpBody = '<div class="empty">Umpires not posted yet. They usually appear with the lineups '+
+              '— hit Refresh.</div>';
+  }
+  var umps = '<div class="card"><h2>Umpires'+
+    (u.projected ? ' <span class="badge proj">Projected</span>' : '')+
+    '</h2><div class="body">'+umpBody+'</div></div>';
+
+  var fellBack = d.fellBackTo && d.fellBackTo !== meta.requestedDate
+    ? '<div class="note">No Cubs game on '+esc(meta.requestedDate)+
+      '. Showing the next one: <strong>'+esc(d.fellBackTo)+'</strong>.</div>'
+    : '';
+
+  $("content").innerHTML =
+    fellBack + hero + info + umps +
+    sideCard(d.away, "Away", d) +
+    sideCard(d.home, "Home", d) +
+    movesCard(d);
+}
+
+/* =======================================================================
+   CONTROLLER
+   ======================================================================= */
+
+var state = { date:null, loading:false, data:null, lastError:null, timer:null };
+
+function setStatus(text, kind, spinning){
+  $("statusText").innerHTML = (spinning ? '<span class="spin"></span> ' : '') + esc(text);
+  $("dot").className = "dot" + (kind ? " "+kind : "");
+}
+function ago(ts){
+  var s = Math.round((Date.now()-ts)/1000);
+  if(s < 10) return "just now";
+  if(s < 60) return s+"s ago";
+  var m = Math.round(s/60);
+  if(m < 60) return m+" min ago";
+  return Math.floor(m/60)+"h "+(m%60)+"m ago";
+}
+
+/* Cache without the player index — it's rebuildable and bulky. */
+function saveCache(d, dateStr){
+  try{
+    var slim = {}; for(var k in d) if(k !== "idx") slim[k] = d[k];
+    slim.idx = d.idx;   // needed to render sub rows offline; still small enough
+    localStorage.setItem(CACHE_KEY, JSON.stringify({date:dateStr, data:slim}));
+  }catch(e){}
+}
+function loadCache(dateStr){
+  try{
+    var c = JSON.parse(localStorage.getItem(CACHE_KEY)||"null");
+    if(c && c.date === dateStr) return c.data;
+  }catch(e){}
+  return null;
+}
+
+function refresh(manual){
+  if(state.loading) return;
+  state.loading = true;
+  $("btnRefresh").disabled = true;
+  setStatus(manual ? "Refreshing…" : "Checking for updates…", null, true);
+
+  loadAll(state.date).then(function(d){
+    var prevMoves = state.data ? state.data.moves.length : null;
+    state.data = d; state.lastError = null;
+    saveCache(d, state.date);
+    render(d, { requestedDate: state.date });
+    var newMoves = (prevMoves != null && d.moves.length > prevMoves)
+      ? " · " + (d.moves.length - prevMoves) + " new move" +
+        (d.moves.length - prevMoves > 1 ? "s" : "")
+      : "";
+    setStatus("Updated " + ago(d.fetchedAt) + newMoves, null, false);
+    scheduleNext(d);
+  }).catch(function(err){
+    state.lastError = err;
+    var cached = state.data || loadCache(state.date);
+    if(cached){
+      render(cached, { requestedDate: state.date });
+      setStatus("Offline — showing data from " + ago(cached.fetchedAt), "stale", false);
+    }else{
+      $("content").innerHTML = '<div class="err"><strong>Couldn’t load.</strong><br>'+
+        esc(err.message||String(err))+'<br><br>Check your connection and tap Refresh.</div>';
+      setStatus("Failed", "err", false);
+    }
+    scheduleNext(null);
+  }).finally(function(){
+    state.loading = false;
+    $("btnRefresh").disabled = false;
+  });
+}
+
+/* Poll fast when it matters, slow when it doesn't. */
+function scheduleNext(d){
+  clearTimeout(state.timer);
+  var delay = 5*60*1000;
+  if(!d){
+    delay = 60*1000;                                   // error: retry in a minute
+  }else if(d.abstract === "Final"){
+    delay = 0;                                         // done — stop polling
+  }else if(d.abstract === "Live"){
+    delay = 30*1000;                                   // subs land fast
+  }else{
+    var mins = (new Date(d.gameDateISO) - Date.now())/60000;
+    var haveLineups = d.away.batters.length && d.home.batters.length;
+    var haveUmps    = d.umps && d.umps.crew && !d.umps.projected;
+    if(mins <= 240 && (!haveLineups || !haveUmps)) delay = 60*1000;
+    else if(mins <= 45) delay = 60*1000;               // late scratches
+  }
+  if(delay > 0) state.timer = setTimeout(function(){ refresh(false); }, delay);
+}
+
+setInterval(function(){
+  if(state.data && !state.loading && !state.lastError){
+    setStatus("Updated " + ago(state.data.fetchedAt), null, false);
+  }
+}, 15000);
+
+document.addEventListener("visibilitychange", function(){
+  if(document.visibilityState === "visible" && state.data){
+    var stale = state.data.abstract === "Live" ? 20000 : 60000;
+    if(Date.now() - state.data.fetchedAt > stale) refresh(false);
+  }
+});
+
+function setDate(dateStr, push){
+  state.date = dateStr;
+  $("datePick").value = dateStr;
+  if(push){
+    var u = new URL(location.href);
+    if(dateStr === todayInChicago()) u.searchParams.delete("date");
+    else u.searchParams.set("date", dateStr);
+    history.replaceState(null,"",u);
+  }
+  var cached = loadCache(dateStr);
+  if(cached) render(cached, { requestedDate: dateStr });
+  refresh(false);
+}
+
+$("btnRefresh").addEventListener("click", function(){ refresh(true); });
+$("btnToday").addEventListener("click", function(){ setDate(todayInChicago(), true); });
+$("datePick").addEventListener("change", function(e){
+  if(e.target.value) setDate(e.target.value, true);
+});
+
+(function(){
+  var q = new URLSearchParams(location.search).get("date");
+  setDate(/^\d{4}-\d{2}-\d{2}$/.test(q||"") ? q : todayInChicago(), false);
+})();
+</script>
+</body>
+</html>
