@@ -728,10 +728,10 @@ function lineupTable(side, d, reveal, statsReveal){
     '</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 
-function pitcherList(side, d, reveal){
+function pitcherList(side, d, reveal, statsReveal){
   var ps = side.pitchers || [];
   if(!ps.length) return '<div class="empty">Starter not announced.</div>';
-  if(!reveal) ps = ps.slice(0, 1);   // relievers reveal how the game is going
+  if(!reveal && !statsReveal) ps = ps.slice(0, 1);   // relievers reveal how the game is going
   var live = d.abstract === "Live";
   var rows = ps.map(function(p, i){
     var isLast = (i === ps.length - 1);
@@ -745,6 +745,7 @@ function pitcherList(side, d, reveal){
       '<span class="nm">'+esc(p.name)+'</span>'+
       (p.throws ? '<span class="meta">'+esc(p.throws)+'HP · '+esc(meta)+'</span>'
                 : '<span class="meta">'+esc(meta)+'</span>')+
+      (statsReveal ? pitcherStatline(p.stats) : '')+
     '</div>';
   }).join("");
   return '<div class="pit">'+rows+'</div>';
