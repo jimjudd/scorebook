@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Cubs Scorebook — Numbers Game #22 prefill, plus live substitution tracking.
+Eephus halfliner scorebook -- pregame prefill, plus live substitution tracking.
 
 Before the game it gives you everything the scorebook header needs: batting
 orders with positions and jersey numbers, starting pitchers, managers, team
-records, the umpire crew, first pitch time, and the ballpark.
+records, the umpire crew, first pitch time, and ballpark.
 
 Once the game starts it keeps going: every pitching change, pinch-hitter,
 pinch-runner, and defensive substitution, with the inning each one entered.
@@ -13,8 +13,11 @@ Pulls from MLB's public Stats API. No key required.
 
 Usage
 -----
-  ./scorebook.py                          today's Cubs game, printed
-  ./scorebook.py --date 2026-08-24        a specific date
+  ./scorebook.py                          today's games, pick one interactively
+  ./scorebook.py --game-pk 776496         a specific game
+  ./scorebook.py --team CHC               today's (or next) Cubs game
+  ./scorebook.py --team-id 112            same, by numeric team id
+  ./scorebook.py --date 2026-08-24        combine with any of the above
   ./scorebook.py --watch                  poll until the game is final
   ./scorebook.py --watch --until-ready    poll only until the card is fillable
   ./scorebook.py --html sheet.html        write a standalone HTML snapshot
@@ -34,7 +37,6 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 API = "https://statsapi.mlb.com"
-TEAM_ID = 112  # Chicago Cubs
 CHICAGO = ZoneInfo("America/Chicago")
 TIMEOUT = 25
 
@@ -76,24 +78,30 @@ def _games(sched):
     return out
 
 
-def find_game(date_str):
-    """The Cubs game on date_str, else the next one within 10 days."""
+def find_game_for_team(team_id, date_str):
+    """The given team's game on date_str, else the next one within 10 days."""
     hyd = "hydrate=probablePitcher,team,venue(timezone)"
     games = _games(get("/api/v1/schedule?sportId=1&teamId=%d&date=%s&%s"
-                       % (TEAM_ID, date_str, hyd)))
+                       % (team_id, date_str, hyd)))
     if games:
         for g in games:  # doubleheader: first game that isn't over
             if g.get("status", {}).get("abstractGameState") != "Final":
-                return g, None
-        return games[-1], None
+                return g["gamePk"], None
+        return games[-1]["gamePk"], None
 
     end = (datetime.strptime(date_str, "%Y-%m-%d")
            + timedelta(days=10)).strftime("%Y-%m-%d")
     games = _games(get("/api/v1/schedule?sportId=1&teamId=%d&startDate=%s&endDate=%s&%s"
-                       % (TEAM_ID, date_str, end, hyd)))
+                       % (team_id, date_str, end, hyd)))
     if not games:
-        raise SystemExit("No Cubs game on %s or in the next 10 days." % date_str)
-    return games[0], games[0]["officialDate"]
+        raise SystemExit("No game for that team on %s or in the next 10 days." % date_str)
+    return games[0]["gamePk"], games[0]["officialDate"]
+
+
+def list_games_for_date(date_str):
+    """Every MLB game on date_str, no team filter -- backs the interactive picker."""
+    hyd = "hydrate=team,venue"
+    return _games(get("/api/v1/schedule?sportId=1&date=%s&%s" % (date_str, hyd)))
 
 
 _mgr_cache = {}
@@ -137,7 +145,7 @@ def umpires(game, live):
     try:
         prior = [
             g for g in _games(get("/api/v1/schedule?sportId=1&teamId=%d"
-                                  "&startDate=%s&endDate=%s" % (TEAM_ID, start, end)))
+                                  "&startDate=%s&endDate=%s" % (home, start, end)))
             if {g["teams"]["away"]["team"]["id"], g["teams"]["home"]["team"]["id"]}
             == {away, home}
             and g.get("status", {}).get("abstractGameState") == "Final"
@@ -334,9 +342,8 @@ def build_side(live, which, idx):
     }
 
 
-def load(date_str):
-    game, fell_back = find_game(date_str)
-    live = get("/api/v1.1/game/%d/feed/live" % game["gamePk"])
+def load(game_pk):
+    live = get("/api/v1.1/game/%d/feed/live" % game_pk)
     gd = live["gameData"]
     idx = player_index(live)
     moves = build_moves(live)
@@ -347,18 +354,21 @@ def load(date_str):
     tz = (gd["venue"].get("timeZone") or {}).get("id") or "America/Chicago"
     away["manager"] = manager(away["id"])
     home["manager"] = manager(home["id"])
+    game = {
+        "gameDate": gd["datetime"]["dateTime"],
+        "teams": {"away": {"team": {"id": away["id"]}},
+                  "home": {"team": {"id": home["id"]}}},
+    }
     return {
         "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "requested_date": date_str,
-        "fell_back_to": fell_back,
-        "game_pk": game["gamePk"],
-        "date": game["officialDate"],
+        "game_pk": game_pk,
+        "date": gd["datetime"]["officialDate"],
         "status": gd.get("status", {}).get("detailedState", ""),
         "abstract": gd.get("status", {}).get("abstractGameState", ""),
         "start_tbd": bool(gd.get("status", {}).get("startTimeTBD")),
         "game_datetime": gd["datetime"]["dateTime"],
-        "game_number": game.get("gameNumber", 1),
-        "doubleheader": game.get("doubleHeader", "N") != "N",
+        "game_number": gd["game"].get("gameNumber", 1),
+        "doubleheader": gd["game"].get("doubleHeader", "N") != "N",
         "venue": gd["venue"]["name"],
         "venue_tz": tz,
         "venue_tz_abbr": (gd["venue"].get("timeZone") or {}).get("tz", ""),
@@ -447,11 +457,6 @@ def render_text(d, color=True, show_moves=False):
     c = C(color and sys.stdout.isatty())
     L = []
     a, h = d["away"], d["home"]
-
-    if d["fell_back_to"] and d["fell_back_to"] != d["requested_date"]:
-        L.append(c.yel("! No Cubs game on %s. Showing %s."
-                       % (d["requested_date"], d["fell_back_to"])))
-        L.append("")
 
     L.append(c.blue(rule("=")))
     title = "%s  @  %s" % (a["short"], h["short"])
@@ -802,8 +807,14 @@ Lineups &amp; umpires post ~2&ndash;3 hrs before first pitch &mdash; re-run to r
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Numbers Game #22 scorebook data for Cubs games.")
+        description="Eephus halfliner scorebook data for any MLB game.")
     ap.add_argument("--date", help="YYYY-MM-DD (default: today, Chicago time)")
+    ap.add_argument("--game-pk", type=int, metavar="N",
+                    help="load this exact game, bypassing team/date lookup")
+    ap.add_argument("--team", metavar="ABBR",
+                    help="e.g. CHC -- today's (or next) game for this team")
+    ap.add_argument("--team-id", type=int, metavar="ID",
+                    help="numeric MLB team id, alternative to --team")
     ap.add_argument("--html", metavar="PATH", help="write a standalone HTML snapshot")
     ap.add_argument("--json", metavar="PATH", help="write the raw structured data")
     ap.add_argument("--watch", action="store_true",
@@ -823,9 +834,37 @@ def main():
     c = C(not args.no_color and sys.stderr.isatty())
     seen = None  # number of moves already printed, once we're in watch mode
 
+    if args.game_pk:
+        game_pk = args.game_pk
+    elif args.team or args.team_id:
+        team_id = args.team_id or TEAM_IDS.get(args.team.upper())
+        if team_id is None:
+            print("Unknown team abbreviation: %s" % args.team, file=sys.stderr)
+            return 1
+        game_pk, fell_back_to = find_game_for_team(team_id, date_str)
+        if fell_back_to:
+            print("No game for that team on %s. Showing %s." % (date_str, fell_back_to),
+                  file=sys.stderr)
+    else:
+        games = list_games_for_date(date_str)
+        if not games:
+            print("No MLB games on %s." % date_str, file=sys.stderr)
+            return 1
+        print("Games on %s:" % date_str, file=sys.stderr)
+        for i, g in enumerate(games, 1):
+            away = g["teams"]["away"]["team"]["name"]
+            home = g["teams"]["home"]["team"]["name"]
+            print("  %2d) %s @ %s" % (i, away, home), file=sys.stderr)
+        choice = input("Pick a game (1-%d): " % len(games))
+        try:
+            game_pk = games[int(choice) - 1]["gamePk"]
+        except (ValueError, IndexError):
+            print("Invalid selection.", file=sys.stderr)
+            return 1
+
     while True:
         try:
-            d = load(date_str)
+            d = load(game_pk)
         except urllib.error.URLError as e:
             print("Network error: %s" % e.reason, file=sys.stderr)
             if not args.watch:
