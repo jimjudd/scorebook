@@ -663,7 +663,7 @@ function subsBySlot(d, which){
   return by;
 }
 
-function subRow(m, idx){
+function subRow(m, idx, statsReveal){
   var info = idx[m.pid] || {};
   var verb = m.kind === "pinch_hit" ? "PH"
            : m.kind === "pinch_run" ? "PR"
@@ -677,6 +677,7 @@ function subRow(m, idx){
       '<span class="when">'+esc(verb)+' · '+esc(when)+'</span></td>'+
     '<td class="c-pos"><span class="poschip">'+esc(m.posNum)+' '+esc(m.posAbbr)+'</span></td>'+
     '<td class="c-bt">'+esc(info.bats||"")+'</td>'+
+    (statsReveal ? statCells(info.stats) : '')+
   '</tr>';
 }
 
@@ -700,7 +701,7 @@ function pitcherStatline(s){
     ' · BF '+esc(s.bf||0)+' · TP '+esc(s.tp||0)+'</span>';
 }
 
-function lineupTable(side, d, reveal){
+function lineupTable(side, d, reveal, statsReveal){
   if(!side.batters.length){
     return '<div class="empty">Lineup not posted yet. Usually goes up 2–3 hours '+
            'before first pitch — hit Refresh.</div>';
@@ -713,13 +714,17 @@ function lineupTable(side, d, reveal){
       '<td class="c-name">'+esc(b.name)+'</td>'+
       '<td class="c-pos"><span class="poschip">'+esc(b.posNum)+' '+esc(b.posAbbr)+'</span></td>'+
       '<td class="c-bt">'+esc(b.bats)+'</td>'+
+      (statsReveal ? statCells(b.stats) : '')+
     '</tr>';
-    if(reveal) (by[b.slot]||[]).forEach(function(m){ r += subRow(m, d.idx); });
+    if(reveal) (by[b.slot]||[]).forEach(function(m){ r += subRow(m, d.idx, statsReveal); });
     return r;
   }).join("");
+  var statHeaders = statsReveal
+    ? ['AB','R','H','BB','LOB','RBI','TB'].map(function(h){ return '<th class="c-stat">'+h+'</th>'; }).join("")
+    : '';
   return '<div class="tscroll"><table><thead><tr>'+
     '<th class="c-ord"></th><th class="c-num">#</th><th>Batter</th>'+
-    '<th class="c-pos">Pos</th><th class="c-bt">B</th>'+
+    '<th class="c-pos">Pos</th><th class="c-bt">B</th>'+statHeaders+
     '</tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
 
