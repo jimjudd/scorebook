@@ -506,13 +506,16 @@ function buildSide(live, which, idx){
     var per = gd.players["ID"+st.pid] || {};
     // allPositions[0] is where they STARTED; position mutates on substitution.
     var pp  = posPair((bx.allPositions && bx.allPositions[0]) || bx.position);
+    var bs  = (bx.stats||{}).batting || {};
     return {
       slot: st.slot,
       pid: st.pid,
       num:  bx.jerseyNumber || per.primaryNumber || "",
       name: (per.fullName || (bx.person&&bx.person.fullName) || "—"),
       posNum: pp[0], posAbbr: pp[1],
-      bats: ((per.batSide||{}).code) || ""
+      bats: ((per.batSide||{}).code) || "",
+      stats: { ab: bs.atBats, r: bs.runs, h: bs.hits, bb: bs.baseOnBalls,
+               lob: bs.leftOnBase, rbi: bs.rbi, tb: bs.totalBases }
     };
   });
 
