@@ -253,6 +253,71 @@ var TEAM_COLORS = {
   146:["#00A3E0","#EF3340"], 147:["#003087","#E4002C"], 158:["#FFC52F","#12284B"]
 };
 
+/* Open-Meteo WMO weather codes -> short human label. */
+var WMO = {
+  0:"Clear", 1:"Mostly Clear", 2:"Partly Cloudy", 3:"Overcast",
+  45:"Fog", 48:"Fog",
+  51:"Light Drizzle", 53:"Drizzle", 55:"Heavy Drizzle",
+  56:"Freezing Drizzle", 57:"Freezing Drizzle",
+  61:"Light Rain", 63:"Rain", 65:"Heavy Rain",
+  66:"Freezing Rain", 67:"Freezing Rain",
+  71:"Light Snow", 73:"Snow", 75:"Heavy Snow", 77:"Snow Grains",
+  80:"Light Showers", 81:"Showers", 82:"Heavy Showers",
+  85:"Snow Showers", 86:"Snow Showers",
+  95:"Thunderstorm", 96:"Thunderstorm w/ Hail", 99:"Thunderstorm w/ Hail"
+};
+
+/* Forecast temp/condition for the hour closest to first pitch. Requests a
+   +/-1 day window in UTC so the "closest hour" search always has coverage,
+   regardless of how the venue's local day maps onto UTC days. */
+function getForecast(lat, lon, isoDateTime){
+  var target = new Date(isoDateTime).getTime();
+  var start = new Date(target - 86400000).toISOString().slice(0,10);
+  var end   = new Date(target + 86400000).toISOString().slice(0,10);
+  var url = "https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+
+            "&hourly=temperature_2m,weathercode&temperature_unit=fahrenheit&timezone=UTC"+
+            "&start_date="+start+"&end_date="+end;
+  var ctl = new AbortController();
+  var timer = setTimeout(function(){ ctl.abort(); }, 10000);
+  return fetch(url, { signal: ctl.signal, cache: "no-store" })
+    .then(function(r){ if(!r.ok) throw new Error("Open-Meteo HTTP "+r.status); return r.json(); })
+    .finally(function(){ clearTimeout(timer); })
+    .then(function(j){
+      var times = (j.hourly||{}).time || [];
+      var bestIdx = -1, bestDiff = Infinity;
+      times.forEach(function(t, i){
+        var diff = Math.abs(new Date(t+"Z").getTime() - target);
+        if(diff < bestDiff){ bestDiff = diff; bestIdx = i; }
+      });
+      if(bestIdx < 0) return null;
+      var code = j.hourly.weathercode[bestIdx];
+      return { temp: Math.round(j.hourly.temperature_2m[bestIdx]), condition: WMO[code] || "—" };
+    }).catch(function(){ return null; });
+}
+
+/* Dome: always "Domed", no API call, pre- or post-game. Retractable:
+   forecast pregame (roof state isn't knowable ahead of time), MLB's own
+   actual weather live/postgame (it already self-reports "Roof Closed" as
+   the condition when shut). Open: forecast pregame, actual live/postgame. */
+function loadConditions(gd, isPregame){
+  var roof = gd.venue.fieldInfo && gd.venue.fieldInfo.roofType;
+  if(roof === "Dome") return Promise.resolve({ mode:"domed" });
+
+  if(isPregame){
+    var loc = (gd.venue.location||{}).defaultCoordinates || {};
+    if(loc.latitude == null || loc.longitude == null) return Promise.resolve({ mode:"unknown" });
+    return getForecast(loc.latitude, loc.longitude, gd.datetime.dateTime)
+      .then(function(f){ return f ? { mode:"forecast", temp:f.temp, condition:f.condition } : { mode:"unknown" }; });
+  }
+
+  var w = gd.weather || {};
+  if(w.temp == null && !w.condition) return Promise.resolve({ mode:"unknown" });
+  // MLB reports temp as a numeric string ("78"); normalize to a number so
+  // both forecast and actual modes carry the same type.
+  var temp = w.temp != null ? parseInt(w.temp, 10) : null;
+  return Promise.resolve({ mode:"actual", temp: isNaN(temp) ? null : temp, condition:w.condition });
+}
+
 /* =======================================================================
    DATA LAYER
    ======================================================================= */
@@ -478,7 +543,10 @@ function loadAll(gamePk){
       away.pitchers = pitchersUsed(away, moves, idx);
       home.pitchers = pitchersUsed(home, moves, idx);
 
-      return Promise.all([getManager(away.id), getManager(home.id), getUmpires(gd, live)])
+      var isPregame = (gd.status||{}).abstractGameState === "Preview";
+      return Promise.all([
+        getManager(away.id), getManager(home.id), getUmpires(gd, live), loadConditions(gd, isPregame)
+      ])
       .then(function(res){
         away.manager = res[0];
         home.manager = res[1];
@@ -496,6 +564,7 @@ function loadAll(gamePk){
           venueTZ: ((gd.venue.timeZone||{}).id) || "America/Chicago",
           venueTZAbbr: ((gd.venue.timeZone||{}).tz) || "",
           umps: res[2],
+          conditions: res[3],
           moves: moves,
           idx: idx,
           away: away, home: home
