@@ -475,18 +475,19 @@ function buildMoves(live, idx){
   return moves;
 }
 
+function pitchingStats(box, pid){
+  var p = (box.players||{})["ID"+pid] || {};
+  var s = (p.stats||{}).pitching || {};
+  return { ip: s.inningsPitched, h: s.hits, r: s.runs, er: s.earnedRuns,
+           bb: s.baseOnBalls, k: s.strikeOuts, bf: s.battersFaced, tp: s.numberOfPitches };
+}
+
 /* Pitchers used by one team, in order. Pitching substitutions never carry a
    replacedPlayer, so the man they relieved is simply the previous pitcher. */
 function pitchersUsed(side, moves, idx, box){
-  function pStats(pid){
-    var p = (box.players||{})["ID"+pid] || {};
-    var s = (p.stats||{}).pitching || {};
-    return { ip: s.inningsPitched, h: s.hits, r: s.runs, er: s.earnedRuns,
-              bb: s.baseOnBalls, k: s.strikeOuts, bf: s.battersFaced, tp: s.numberOfPitches };
-  }
   var list = [];
   if(side.sp) list.push({ pid: side.sp.pid, num: side.sp.num, name: side.sp.name,
-                          throws: side.sp.throws, entered: null, stats: pStats(side.sp.pid) });
+                          throws: side.sp.throws, entered: null, stats: pitchingStats(box, side.sp.pid) });
   moves.filter(function(m){ return m.kind === "pitching" && m.team === side.which; })
        .forEach(function(m){
     var info = idx[m.pid] || {};
@@ -497,7 +498,7 @@ function pitchersUsed(side, moves, idx, box){
       throws: info.throws || "",
       entered: { inning: m.inning, half: m.half },
       relieved: list.length ? list[list.length-1].name : null,
-      stats: pStats(m.pid)
+      stats: pitchingStats(box, m.pid)
     });
   });
   return list;
