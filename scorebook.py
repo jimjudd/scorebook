@@ -59,6 +59,21 @@ TEAM_IDS = {
     "PHI": 143, "ATL": 144, "CWS": 145, "MIA": 146, "NYY": 147, "MIL": 158,
 }
 
+# Open-Meteo WMO weather codes -> short human label. Kept in sync with the
+# WMO table in scorebook.html so both front ends describe weather the same way.
+WMO_CONDITIONS = {
+    0: "Clear", 1: "Mostly Clear", 2: "Partly Cloudy", 3: "Overcast",
+    45: "Fog", 48: "Fog",
+    51: "Light Drizzle", 53: "Drizzle", 55: "Heavy Drizzle",
+    56: "Freezing Drizzle", 57: "Freezing Drizzle",
+    61: "Light Rain", 63: "Rain", 65: "Heavy Rain",
+    66: "Freezing Rain", 67: "Freezing Rain",
+    71: "Light Snow", 73: "Snow", 75: "Heavy Snow", 77: "Snow Grains",
+    80: "Light Showers", 81: "Showers", 82: "Heavy Showers",
+    85: "Snow Showers", 86: "Snow Showers",
+    95: "Thunderstorm", 96: "Thunderstorm w/ Hail", 99: "Thunderstorm w/ Hail",
+}
+
 
 # --------------------------------------------------------------------------
 # fetch
@@ -165,6 +180,108 @@ def umpires(game, live):
         }
     except Exception:
         return {"crew": None, "projected": False, "from": None}
+
+
+def forecast(lat, lon, iso_dt):
+    """Forecast temp/condition for the hour closest to iso_dt.
+
+    Requests a +/-1 day window in UTC so the closest-hour search always has
+    coverage, regardless of how the venue's local day maps onto UTC days.
+    Returns {"temp": int, "condition": str} or None on failure.
+    """
+    target = datetime.fromisoformat(iso_dt.replace("Z", "+00:00"))
+    start = (target - timedelta(days=1)).strftime("%Y-%m-%d")
+    end = (target + timedelta(days=1)).strftime("%Y-%m-%d")
+    url = ("https://api.open-meteo.com/v1/forecast?latitude=%s&longitude=%s"
+           "&hourly=temperature_2m,weathercode&temperature_unit=fahrenheit"
+           "&timezone=UTC&start_date=%s&end_date=%s" % (lat, lon, start, end))
+    req = urllib.request.Request(url, headers={"User-Agent": "eephus-scorebook/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            j = json.load(r)
+    except Exception:
+        return None
+    hourly = j.get("hourly") or {}
+    times = hourly.get("time") or []
+    if not times:
+        return None
+    best_idx, best_diff = -1, None
+    for i, t in enumerate(times):
+        diff = abs(datetime.fromisoformat(t + "+00:00") - target)
+        if best_diff is None or diff < best_diff:
+            best_idx, best_diff = i, diff
+    if best_idx < 0:
+        return None
+    try:
+        temp = round(hourly["temperature_2m"][best_idx])
+        code = hourly["weathercode"][best_idx]
+    except (KeyError, IndexError, TypeError):
+        return None
+    return {"temp": temp, "condition": WMO_CONDITIONS.get(code, "--")}
+
+
+def conditions(gd, is_pregame):
+    """Roof-aware weather for this game.
+
+    Dome: always "domed", no API call, pre- or post-game. Retractable:
+    forecast pregame (roof state isn't knowable ahead of time), MLB's own
+    actual weather live/postgame (it already self-reports "Roof Closed" as
+    the condition when shut). Open: forecast pregame, actual live/postgame.
+    """
+    venue = gd.get("venue", {})
+    roof = (venue.get("fieldInfo") or {}).get("roofType")
+    if roof == "Dome":
+        return {"mode": "domed"}
+
+    if is_pregame:
+        loc = (venue.get("location") or {}).get("defaultCoordinates") or {}
+        lat, lon = loc.get("latitude"), loc.get("longitude")
+        if lat is None or lon is None:
+            return {"mode": "unknown"}
+        f = forecast(lat, lon, gd["datetime"]["dateTime"])
+        if f:
+            return {"mode": "forecast", "temp": f["temp"], "condition": f["condition"]}
+        return {"mode": "unknown"}
+
+    w = gd.get("weather") or {}
+    if w.get("temp") is None and not w.get("condition"):
+        return {"mode": "unknown"}
+    # MLB reports temp as a numeric string ("78"); normalize to an int so
+    # both forecast and actual modes carry the same type.
+    try:
+        temp = int(w["temp"]) if w.get("temp") is not None else None
+    except (TypeError, ValueError):
+        temp = None
+    return {"mode": "actual", "temp": temp, "condition": w.get("condition")}
+
+
+def end_time_iso(gd):
+    """First pitch + game duration, once known. Only set once the game is Final."""
+    info = gd.get("gameInfo") or {}
+    duration = info.get("gameDurationMinutes")
+    if duration is None:
+        return None
+    first_pitch = info.get("firstPitch")
+    start_iso = first_pitch or gd["datetime"]["dateTime"]
+    start = datetime.fromisoformat(start_iso.replace("Z", "+00:00"))
+    return (start + timedelta(minutes=duration)).isoformat()
+
+
+def conditions_line(cond):
+    """(label, value) for the weather line, or None if nothing worth showing."""
+    if not cond:
+        return None
+    mode = cond.get("mode")
+    if mode == "domed":
+        return "WEATHER", "Domed"
+    if mode == "forecast":
+        return "FORECAST", "%s, %s°F" % (cond.get("condition") or "--", cond.get("temp"))
+    if mode == "actual" and (cond.get("condition") or cond.get("temp") is not None):
+        val = cond.get("condition") or "--"
+        if cond.get("temp") is not None:
+            val += ", %s°F" % cond["temp"]
+        return "WEATHER", val
+    return None
 
 
 # --------------------------------------------------------------------------
@@ -362,6 +479,7 @@ def load(game_pk):
         "teams": {"away": {"team": {"id": away["id"]}},
                   "home": {"team": {"id": home["id"]}}},
     }
+    is_pregame = gd.get("status", {}).get("abstractGameState") == "Preview"
     return {
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "game_pk": game_pk,
@@ -375,6 +493,9 @@ def load(game_pk):
         "venue": gd["venue"]["name"],
         "venue_tz": tz,
         "venue_tz_abbr": (gd["venue"].get("timeZone") or {}).get("tz", ""),
+        "conditions": conditions(gd, is_pregame),
+        "attendance": (gd.get("gameInfo") or {}).get("attendance"),
+        "end_time": end_time_iso(gd),
         "umpires": umpires(game, live),
         "moves": moves,
         "index": {str(k): v for k, v in idx.items()},
@@ -480,6 +601,16 @@ def render_text(d, color=True, show_moves=False):
     if here != venue_time and not d["start_tbd"]:
         L.append("  %s %s" % (c.dim("           "), c.dim(here + " Chicago time")))
     L.append("  %s %s" % (c.dim("STATUS     "), d["status"]))
+
+    cl = conditions_line(d["conditions"])
+    if cl:
+        label, val = cl
+        L.append("  %s %s" % (c.dim(label.ljust(11)), val))
+    if d["attendance"] is not None:
+        L.append("  %s %s" % (c.dim("ATTENDANCE "), "{:,}".format(d["attendance"])))
+    if d["end_time"]:
+        L.append("  %s %s" % (c.dim("END TIME   "),
+                              fmt_time(d["end_time"], d["venue_tz"])))
 
     L.append("")
 
@@ -674,6 +805,24 @@ def render_html(d, show_moves=False):
     time_block = ('<div class="fp">%s <small>%s</small></div>'
                   % (esc(t), esc(d["venue_tz_abbr"])))
 
+    cl = conditions_line(d["conditions"])
+    cond_cells = []
+    if cl:
+        label, val = cl
+        cond_cells.append('<div class="cell"><div class="lbl">%s</div>'
+                          '<div class="val">%s</div></div>' % (esc(label.title()), esc(val)))
+    if d["attendance"] is not None:
+        cond_cells.append('<div class="cell"><div class="lbl">Attendance</div>'
+                          '<div class="val">%s</div></div>'
+                          % esc("{:,}".format(d["attendance"])))
+    if d["end_time"]:
+        cond_cells.append('<div class="cell"><div class="lbl">End Time</div>'
+                          '<div class="val">%s</div></div>'
+                          % esc(fmt_time(d["end_time"], d["venue_tz"])))
+    conditions_card = (
+        '<div class="card"><h2>Conditions</h2><div class="body"><div class="kv">%s</div></div></div>'
+        % "".join(cond_cells)) if cond_cells else ""
+
     def side_block(s, label):
         pitchers = s.get("pitchers") or []
         if not show_moves:
@@ -775,6 +924,7 @@ def render_html(d, show_moves=False):
   <div class="park">%s &middot; <span class="tag">%s</span>%s</div>
   %s
 </div>
+%s
 
 <div class="card"><h2>Teams</h2><div class="body"><div class="kv">
   <div class="cell"><div class="lbl">Away Record</div><div class="val">%s
@@ -796,7 +946,7 @@ Lineups &amp; umpires post ~2&ndash;3 hrs before first pitch &mdash; re-run to r
         CSS,
         esc(a["short"]), esc(h["short"]), esc(d["venue"]),
         esc(fmt_date(d["game_datetime"], d["venue_tz"])), esc(d["status"]), dh,
-        time_block,
+        time_block, conditions_card,
         esc(a["record"] or "&mdash;"), esc(a["pct"] or ""),
         esc(h["record"] or "&mdash;"), esc(h["pct"] or ""),
         esc(a["manager"] or "&mdash;"), esc(h["manager"] or "&mdash;"),
