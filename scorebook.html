@@ -623,6 +623,21 @@ function setRevealed(pk, on){
   }catch(e){}
 }
 
+/* Stats reveal is a second, independent spoiler gate: a batter's line or a
+   pitcher's box score tells you how the game is going just as much as a
+   substitution does. Keyed separately so revealing one never reveals the
+   other. */
+function statsKey(pk){ return "eephus-scorebook-stats-" + pk; }
+function isStatsRevealed(pk){
+  try{ return localStorage.getItem(statsKey(pk)) === "1"; }catch(e){ return false; }
+}
+function setStatsRevealed(pk, on){
+  try{
+    if(on) localStorage.setItem(statsKey(pk), "1");
+    else   localStorage.removeItem(statsKey(pk));
+  }catch(e){}
+}
+
 /* Substitution rows, keyed by the batting slot they entered. */
 function subsBySlot(d, which){
   var by = {};
