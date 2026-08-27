@@ -915,7 +915,7 @@ def render_html(d, show_moves=False):
     fetched = datetime.fromisoformat(d["fetched_at"]).astimezone(CHICAGO)
 
     return """<meta charset="utf-8">
-<title>Cubs Scorebook Prefill</title>
+<title>Eephus Halfliner Scorebook</title>
 <style>%s</style>
 <div class="wrap">
 <div class="card hero">

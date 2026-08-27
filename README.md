@@ -1,8 +1,17 @@
-# Cubs Scorebook
+# Eephus Halfliner Scorebook
 
-Everything needed to fill out a **Numbers Game #22** scorebook — the header before
-first pitch, and every substitution once the game is underway. Pulled from MLB's
-public Stats API. No key, no account.
+Everything needed to fill out an **Eephus halfliner** scorebook — the header before
+first pitch, and every substitution once the game is underway — for any MLB game on
+any date. Pulled from MLB's public Stats API, plus a free Open-Meteo call for
+pregame weather forecasts. No key, no account.
+
+## Picking a game
+
+`index.html` is the landing page: a date picker (defaults to your local today) and
+every MLB game scheduled that day, with first-pitch time and ballpark. No scores or
+live state beyond a plain Scheduled/Live/Final label — a picker is still a picker
+even for a game you're avoiding results for. Click a game to open it in
+`scorebook.html`.
 
 ## Before first pitch
 
@@ -15,6 +24,7 @@ public Stats API. No key, no account.
 | HP / 1B / 2B / 3B umpires | `boxscore.officials` |
 | First pitch (venue-local + your time) | `gameData.datetime` + venue timezone |
 | Ballpark | `gameData.venue.name` |
+| Weather forecast (pregame) | Open-Meteo, keyed on venue coordinates + first-pitch hour |
 
 ## No scores, ever
 
@@ -35,7 +45,13 @@ they're **hidden by default**:
 With moves hidden you still get the full prefill: lineups, positions, jersey
 numbers, both starting pitchers, managers, records, umpires, first pitch, park.
 
-## During the game (with moves revealed)
+## Once the game is underway or final
+
+| Field | Notes |
+|---|---|
+| Attendance | Appears once MLB posts it — typically once the game is Final |
+| End time | Only computable once the game is Final (duration isn't known before then) |
+| Actual weather | Domed parks always show "Domed"; retractable-roof parks show MLB's own reported condition, which already says "Roof Closed" when shut |
 
 Every substitution, in order, with the inning it happened:
 
@@ -66,9 +82,11 @@ inning they entered and who they relieved.
 
 ### 1. `scorebook.html` — the live page (use this at the ballpark)
 
-A single self-contained file. It talks to `statsapi.mlb.com` directly from the
-browser (the API sends `Access-Control-Allow-Origin: *`), so there is **no server
-and nothing running at home**. Open it and it fetches current data.
+A single self-contained file. It talks to `statsapi.mlb.com` and, pregame,
+`api.open-meteo.com` directly from the browser (both send
+`Access-Control-Allow-Origin: *`), so there is **no server and nothing running at
+home**. Open it via a `?gamePk=` link from `index.html` and it fetches current data
+for that game.
 
 - **↻ Refresh now** button pinned at the bottom, thumb-reachable.
 - **Auto-refresh**, tuned to what's happening: every **30s while the game is
@@ -83,7 +101,7 @@ and nothing running at home**. Open it and it fetches current data.
   — but only for a game you've already revealed.
 - **Caches to `localStorage`** — flaky ballpark wifi shows the last good pull
   with an "Offline" marker instead of an error.
-- Date picker for any other day; `?date=YYYY-MM-DD` also works.
+- **Header recolors to the home team.**
 - Prints cleanly if you'd rather carry paper.
 
 **Try it locally:**
@@ -92,15 +110,15 @@ and nothing running at home**. Open it and it fetches current data.
 python3 -m http.server 8777 --directory ~/Scorebook
 ```
 
-Then open <http://localhost:8777/scorebook.html>.
+Then open <http://localhost:8777/index.html> and pick a game.
 
 #### Getting it on your phone
 
-The file is fully static, so any static host works. GitHub Pages is the usual
+The files are fully static, so any static host works. GitHub Pages is the usual
 5-minute path:
 
 ```bash
-cd ~/Scorebook && git init && git add scorebook.html && git commit -m "Cubs scorebook"
+cd ~/Scorebook && git init && git add index.html scorebook.html && git commit -m "Eephus halfliner scorebook"
 ```
 
 Create an empty repo on github.com, then:
@@ -110,9 +128,9 @@ git remote add origin https://github.com/YOUR-USERNAME/scorebook.git && git bran
 ```
 
 In the repo: **Settings → Pages → Source: `main` / root → Save**. About a minute
-later it's live at `https://YOUR-USERNAME.github.io/scorebook/scorebook.html`.
+later it's live at `https://YOUR-USERNAME.github.io/scorebook/`.
 
-Alternatives that need no git: drag the file onto [Netlify Drop](https://app.netlify.com/drop),
+Alternatives that need no git: drag the files onto [Netlify Drop](https://app.netlify.com/drop),
 or `npx wrangler pages deploy .` for Cloudflare Pages.
 
 **On the phone:** open the URL in Safari → Share → **Add to Home Screen**. It gets
@@ -123,7 +141,13 @@ an icon and opens full-screen like an app.
 Standard library only, Python 3.9+ (verified).
 
 ```bash
-./scorebook.py
+./scorebook.py                    # lists today's games, prompts for a pick
+```
+
+```bash
+./scorebook.py --team CHC         # today's (or next) Cubs game
+./scorebook.py --team-id 112      # same, by numeric team id
+./scorebook.py --game-pk 776496   # a specific game
 ```
 
 ```bash
@@ -197,8 +221,14 @@ pitcher of record forward from the starter.
 lineup and in the pitchers-used list.
 
 **Doubleheaders** pick the first game that isn't Final; the header shows
-"Game 1"/"Game 2". **No game today?** Both tools roll forward to the next Cubs
-game within 10 days and tell you they did.
+"Game 1"/"Game 2". `--team`/`--team-id` roll forward to the next game within 10
+days if there's none on the requested date, and say so; `--game-pk` and the
+picker always name an exact game, so there's no fallback to report.
+
+**Domed and retractable-roof parks** always show "Domed" for domes; retractable
+roofs show the pregame forecast (roof state isn't knowable ahead of time) and
+MLB's own actual weather once the game is live or final — MLB already reports
+"Roof Closed" as the condition string when the roof is shut.
 
 Positions render in scorebook notation — `8 CF`, `6 SS`, `D DH` — so they drop
 straight into the position column. `B` is the batter's side (L/R/S); pitchers show
@@ -206,5 +236,5 @@ RHP/LHP.
 
 ---
 
-Unofficial. Data © MLB Advanced Media, via `statsapi.mlb.com`, for personal
-scorekeeping.
+Unofficial. Data © MLB Advanced Media, via `statsapi.mlb.com`, plus forecasts from
+`api.open-meteo.com`, for personal scorekeeping.
