@@ -318,6 +318,15 @@ function loadConditions(gd, isPregame){
   return Promise.resolve({ mode:"actual", temp: isNaN(temp) ? null : temp, condition:w.condition });
 }
 
+/* Only computable once the game is Final -- duration isn't known before then. */
+function endTimeInfo(gd){
+  var info = gd.gameInfo || {};
+  if(info.gameDurationMinutes == null) return null;
+  var start = info.firstPitch ? new Date(info.firstPitch) : null;
+  if(!start || isNaN(start.getTime())) start = new Date(gd.datetime.dateTime);
+  return new Date(start.getTime() + info.gameDurationMinutes*60000).toISOString();
+}
+
 /* =======================================================================
    DATA LAYER
    ======================================================================= */
@@ -565,6 +574,8 @@ function loadAll(gamePk){
           venueTZAbbr: ((gd.venue.timeZone||{}).tz) || "",
           umps: res[2],
           conditions: res[3],
+          attendance: (gd.gameInfo||{}).attendance != null ? gd.gameInfo.attendance : null,
+          endTimeISO: endTimeInfo(gd),
           moves: moves,
           idx: idx,
           away: away, home: home
@@ -736,7 +747,35 @@ function movesCard(d, reveal){
          '<div class="body"><div class="moves">'+rows+'</div></div></div>';
 }
 
+function conditionsCard(d){
+  var c = d.conditions || { mode:"unknown" };
+  var weatherLbl = c.mode === "forecast" ? "Forecast" : "Weather";
+  var weatherVal = c.mode === "domed" ? "Domed"
+    : c.mode === "forecast" ? esc(c.condition)+', '+esc(c.temp)+'&deg;F'
+    : c.mode === "actual"   ? esc(c.condition||"—")+(c.temp!=null ? ', '+esc(c.temp)+'&deg;F' : '')
+    :                         "—";
+  var cells = '<div class="cell"><div class="lbl">'+esc(weatherLbl)+'</div><div class="val">'+weatherVal+'</div></div>';
+  if(d.attendance != null){
+    cells += '<div class="cell"><div class="lbl">Attendance</div><div class="val">'+
+      esc(d.attendance.toLocaleString())+'</div></div>';
+  }
+  if(d.endTimeISO){
+    cells += '<div class="cell"><div class="lbl">End Time</div><div class="val">'+
+      esc(fmtTime(d.endTimeISO, d.venueTZ))+'</div></div>';
+  }
+  return '<div class="card"><h2>Conditions</h2><div class="body"><div class="kv">'+cells+'</div></div></div>';
+}
+
+/* Recolor the header to the home team so the page isn't permanently Cubs blue. */
+function applyTeamColors(homeTeamId){
+  var c = TEAM_COLORS[homeTeamId];
+  if(!c) return;
+  document.documentElement.style.setProperty("--cubs", c[0]);
+  document.documentElement.style.setProperty("--cubs-red", c[1]);
+}
+
 function render(d){
+  applyTeamColors(d.home.id);
   var tzLocal   = localTZ();
   var venueTime = fmtTime(d.gameDateISO, d.venueTZ);
   var localTime = fmtTime(d.gameDateISO, tzLocal);
@@ -816,7 +855,7 @@ function render(d){
   }
 
   $("content").innerHTML =
-    hero + info + umps + gate +
+    hero + conditionsCard(d) + info + umps + gate +
     sideCard(d.away, "Away", d, reveal) +
     sideCard(d.home, "Home", d, reveal) +
     movesCard(d, reveal);
