@@ -712,13 +712,13 @@ def esc(s):
 
 CSS = """
 :root{--bg:#f4f5f7;--panel:#fff;--ink:#14161a;--muted:#5d6470;--line:#d9dce2;
---cubs:#0e3386;--sub:#0f6b4f;--warn-bg:#fdf3d8;--warn-ink:#7a5a05;--warn-line:#e6cf94;
+--sub:#0f6b4f;--warn-bg:#fdf3d8;--warn-ink:#7a5a05;--warn-line:#e6cf94;
 --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){
 --bg:#101216;--panel:#191d24;--ink:#eef1f5;--muted:#9aa3b0;--line:#2b313b;
---cubs:#5b8ce8;--sub:#4fbf95;--warn-bg:#332a10;--warn-ink:#e5c76b;--warn-line:#5a4a1c}}
+--sub:#4fbf95;--warn-bg:#332a10;--warn-ink:#e5c76b;--warn-line:#5a4a1c}}
 :root[data-theme="dark"]{--bg:#101216;--panel:#191d24;--ink:#eef1f5;--muted:#9aa3b0;
---line:#2b313b;--cubs:#5b8ce8;--sub:#4fbf95;--warn-bg:#332a10;--warn-ink:#e5c76b;
+--line:#2b313b;--sub:#4fbf95;--warn-bg:#332a10;--warn-ink:#e5c76b;
 --warn-line:#5a4a1c}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);margin:0;padding:16px 12px 40px;

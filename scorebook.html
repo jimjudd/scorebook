@@ -11,7 +11,7 @@
 <style>
 :root{
   --bg:#f4f5f7; --panel:#ffffff; --ink:#14161a; --muted:#5d6470; --line:#d9dce2;
-  --cubs:#14161a; --cubs-red:#a8551a; --accent:#14161a; --sub:#0f6b4f;
+  --team:#14161a; --team-accent:#a8551a; --accent:#14161a; --sub:#0f6b4f;
   --warn-bg:#fdf3d8; --warn-ink:#7a5a05; --warn-line:#e6cf94;
   --ok:#1d7a43; --stale:#a8551a;
   --radius:12px;
@@ -21,14 +21,14 @@
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --bg:#101216; --panel:#191d24; --ink:#eef1f5; --muted:#9aa3b0; --line:#2b313b;
-    --cubs:#eef1f5; --cubs-red:#e0964f; --accent:#eef1f5; --sub:#4fbf95;
+    --team:#eef1f5; --team-accent:#e0964f; --accent:#eef1f5; --sub:#4fbf95;
     --warn-bg:#332a10; --warn-ink:#e5c76b; --warn-line:#5a4a1c;
     --ok:#4dbd7b; --stale:#e0964f;
   }
 }
 :root[data-theme="dark"]{
   --bg:#101216; --panel:#191d24; --ink:#eef1f5; --muted:#9aa3b0; --line:#2b313b;
-  --cubs:#eef1f5; --cubs-red:#e0964f; --accent:#eef1f5; --sub:#4fbf95;
+  --team:#eef1f5; --team-accent:#e0964f; --accent:#eef1f5; --sub:#4fbf95;
   --warn-bg:#332a10; --warn-ink:#e5c76b; --warn-line:#5a4a1c;
   --ok:#4dbd7b; --stale:#e0964f;
 }
@@ -48,20 +48,20 @@ body{
   display:flex; gap:8px; align-items:center; flex-wrap:wrap;
   padding-top:calc(8px + env(safe-area-inset-top));
 }
-.brand{font-weight:800;letter-spacing:-.02em;color:var(--cubs);font-size:15px;margin-right:auto;text-decoration:none}
+.brand{font-weight:800;letter-spacing:-.02em;color:var(--team);font-size:15px;margin-right:auto;text-decoration:none}
 button, select{
   font-family:var(--sans); font-size:15px; color:var(--ink);
   background:var(--panel); border:1px solid var(--line); border-radius:10px;
   padding:9px 12px; min-height:42px;
 }
 button{cursor:pointer;-webkit-tap-highlight-color:transparent}
-button.primary{background:var(--cubs);border-color:var(--cubs);color:#fff;font-weight:700}
+button.primary{background:var(--team);border-color:var(--team);color:#fff;font-weight:700}
 button:active{transform:scale(.97)}
 button[disabled]{opacity:.55}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .status{width:100%;display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--muted)}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
-.dot.stale{background:var(--stale)} .dot.err{background:var(--cubs-red)}
+.dot.stale{background:var(--stale)} .dot.err{background:var(--team-accent)}
 .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);
   border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite}
 @keyframes sp{to{transform:rotate(360deg)}}
@@ -88,7 +88,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 .badge{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;
   text-transform:uppercase;padding:3px 8px;border-radius:99px;border:1px solid var(--line);
   color:var(--muted);vertical-align:middle}
-.badge.live{background:var(--cubs-red);border-color:var(--cubs-red);color:#fff}
+.badge.live{background:var(--team-accent);border-color:var(--team-accent);color:#fff}
 .badge.proj{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-ink)}
 
 /* live score strip */
@@ -140,7 +140,7 @@ tr.subrow .poschip{font-size:12px;font-weight:700}
 .pit .nm{font-weight:700;font-size:16.5px}
 .pit .meta{color:var(--muted);font-size:13px;margin-left:auto;font-family:var(--mono);white-space:nowrap}
 .pit .row.relief .n,.pit .row.relief .nm{color:var(--sub)}
-.pit .row.cur .nm::after{content:" ●";color:var(--cubs-red);font-size:11px;vertical-align:middle}
+.pit .row.cur .nm::after{content:" ●";color:var(--team-accent);font-size:11px;vertical-align:middle}
 
 /* ---------- moves log ---------- */
 .moves{display:flex;flex-direction:column;gap:0}
@@ -159,8 +159,8 @@ tr.subrow .poschip{font-size:12px;font-weight:700}
 .note{background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-ink);
   border-radius:10px;padding:10px 12px;font-size:13.5px;margin-top:10px}
 .empty{color:var(--muted);font-style:italic;padding:14px 2px;font-size:14.5px}
-.err{background:var(--panel);border:1px solid var(--cubs-red);border-radius:var(--radius);
-  padding:14px;margin-top:12px;color:var(--cubs-red);font-size:14.5px}
+.err{background:var(--panel);border:1px solid var(--team-accent);border-radius:var(--radius);
+  padding:14px;margin-top:12px;color:var(--team-accent);font-size:14.5px}
 .foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:18px;line-height:1.6}
 
 .fab{position:fixed;left:0;right:0;bottom:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));
@@ -749,12 +749,22 @@ function movesCard(d, reveal){
 
 function conditionsCard(d){
   var c = d.conditions || { mode:"unknown" };
-  var weatherLbl = c.mode === "forecast" ? "Forecast" : "Weather";
-  var weatherVal = c.mode === "domed" ? "Domed"
-    : c.mode === "forecast" ? esc(c.condition)+', '+esc(c.temp)+'&deg;F'
-    : c.mode === "actual"   ? esc(c.condition||"—")+(c.temp!=null ? ', '+esc(c.temp)+'&deg;F' : '')
-    :                         "—";
-  var cells = '<div class="cell"><div class="lbl">'+esc(weatherLbl)+'</div><div class="val">'+weatherVal+'</div></div>';
+  var weatherCell = null;
+  if(c.mode === "domed"){
+    weatherCell = ["Weather", "Domed"];
+  } else if(c.mode === "forecast"){
+    var forecastVal = esc(c.condition || "--");
+    if(c.temp != null) forecastVal += ', '+esc(c.temp)+'&deg;F';
+    weatherCell = ["Forecast", forecastVal];
+  } else if(c.mode === "actual" && (c.condition || c.temp != null)){
+    var actualVal = esc(c.condition || "--");
+    if(c.temp != null) actualVal += ', '+esc(c.temp)+'&deg;F';
+    weatherCell = ["Weather", actualVal];
+  }
+  var cells = "";
+  if(weatherCell){
+    cells += '<div class="cell"><div class="lbl">'+esc(weatherCell[0])+'</div><div class="val">'+weatherCell[1]+'</div></div>';
+  }
   if(d.attendance != null){
     cells += '<div class="cell"><div class="lbl">Attendance</div><div class="val">'+
       esc(d.attendance.toLocaleString())+'</div></div>';
@@ -763,6 +773,7 @@ function conditionsCard(d){
     cells += '<div class="cell"><div class="lbl">End Time</div><div class="val">'+
       esc(fmtTime(d.endTimeISO, d.venueTZ))+'</div></div>';
   }
+  if(!cells) return "";
   return '<div class="card"><h2>Conditions</h2><div class="body"><div class="kv">'+cells+'</div></div></div>';
 }
 
@@ -770,8 +781,8 @@ function conditionsCard(d){
 function applyTeamColors(homeTeamId){
   var c = TEAM_COLORS[homeTeamId];
   if(!c) return;
-  document.documentElement.style.setProperty("--cubs", c[0]);
-  document.documentElement.style.setProperty("--cubs-red", c[1]);
+  document.documentElement.style.setProperty("--team", c[0]);
+  document.documentElement.style.setProperty("--team-accent", c[1]);
 }
 
 function render(d){
