@@ -680,6 +680,26 @@ function subRow(m, idx){
   '</tr>';
 }
 
+/* Seven right-aligned cells for a batter's line. No plate appearance yet
+   (ab falsy) reads as a row of dashes, not a row of zeroes. */
+function statCells(s){
+  s = s || {};
+  var vals = [s.ab, s.r, s.h, s.bb, s.lob, s.rbi, s.tb];
+  if(!s.ab) return vals.map(function(){ return '<td class="c-stat">—</td>'; }).join("");
+  return vals.map(function(v){ return '<td class="c-stat">'+esc(v==null?0:v)+'</td>'; }).join("");
+}
+
+/* Wrapped stat-chip line for a pitcher. No batters faced yet reads as a
+   single dash rather than a line of zeroes. */
+function pitcherStatline(s){
+  s = s || {};
+  if(!s.bf) return '<span class="statline">—</span>';
+  var ip = s.ip == null ? "0.0" : s.ip;
+  return '<span class="statline">IP '+esc(ip)+' · H '+esc(s.h||0)+' · R '+esc(s.r||0)+
+    ' · ER '+esc(s.er||0)+' · BB '+esc(s.bb||0)+' · K '+esc(s.k||0)+
+    ' · BF '+esc(s.bf||0)+' · TP '+esc(s.tp||0)+'</span>';
+}
+
 function lineupTable(side, d, reveal){
   if(!side.batters.length){
     return '<div class="empty">Lineup not posted yet. Usually goes up 2–3 hours '+
