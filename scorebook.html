@@ -48,8 +48,8 @@ body{
   display:flex; gap:8px; align-items:center; flex-wrap:wrap;
   padding-top:calc(8px + env(safe-area-inset-top));
 }
-.brand{font-weight:800;letter-spacing:-.02em;color:var(--cubs);font-size:15px;margin-right:auto}
-button, select, input[type=date]{
+.brand{font-weight:800;letter-spacing:-.02em;color:var(--cubs);font-size:15px;margin-right:auto;text-decoration:none}
+button, select{
   font-family:var(--sans); font-size:15px; color:var(--ink);
   background:var(--panel); border:1px solid var(--line); border-radius:10px;
   padding:9px 12px; min-height:42px;
@@ -178,7 +178,7 @@ tr.subrow .poschip{font-size:12px;font-weight:700}
 <div class="wrap">
 
   <div class="topbar">
-    <a class="brand" href="index.html" style="color:var(--cubs);text-decoration:none">EEPHUS HALFLINER</a>
+    <a class="brand" href="index.html">EEPHUS HALFLINER</a>
     <div class="status">
       <span class="dot" id="dot"></span>
       <span id="statusText">Loading…</span>
@@ -199,7 +199,7 @@ tr.subrow .poschip{font-size:12px;font-weight:700}
 <script>
 "use strict";
 /* =======================================================================
-   Cubs Scorebook — Numbers Game #22 prefill + live substitution tracking
+   Eephus Halfliner Scorebook — any-game prefill + live substitution tracking
    Pure client-side. Talks straight to statsapi.mlb.com (CORS: *).
    ======================================================================= */
 
@@ -857,13 +857,8 @@ document.addEventListener("visibilitychange", function(){
   }
 });
 
-function setGamePk(gamePk, push){
+function setGamePk(gamePk){
   state.gamePk = gamePk;
-  if(push){
-    var u = new URL(location.href);
-    u.searchParams.set("gamePk", gamePk);
-    history.replaceState(null,"",u);
-  }
   var cached = loadCache(gamePk);
   if(cached) render(cached);
   refresh(false);
@@ -889,7 +884,7 @@ $("btnRefresh").addEventListener("click", function(){ refresh(true); });
     setStatus("No game selected", "err", false);
     return;
   }
-  setGamePk(pk, false);
+  setGamePk(pk);
 })();
 </script>
 </body>
