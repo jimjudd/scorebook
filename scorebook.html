@@ -205,7 +205,6 @@ tr.subrow .poschip{font-size:12px;font-weight:700}
    Pure client-side. Talks straight to statsapi.mlb.com (CORS: *).
    ======================================================================= */
 
-var TEAM_ID   = 112;                 // Chicago Cubs
 var API       = "https://statsapi.mlb.com";
 var CACHE_KEY = "cubs-scorebook-cache-v2";
 
@@ -266,34 +265,11 @@ var TEAM_COLORS = {
    DATA LAYER
    ======================================================================= */
 
-function findGame(dateStr){
-  var hyd = "hydrate=probablePitcher,team,venue(timezone)";
-  return getJSON("/api/v1/schedule?sportId=1&teamId="+TEAM_ID+"&date="+dateStr+"&"+hyd)
-    .then(function(sched){
-      var games = collectGames(sched);
-      if(games.length) return { game: pickGame(games), fellBackTo:null };
-      var end = new Date(dateStr + "T12:00:00Z");
-      end.setUTCDate(end.getUTCDate() + 10);
-      return getJSON("/api/v1/schedule?sportId=1&teamId="+TEAM_ID+
-                     "&startDate="+dateStr+"&endDate="+end.toISOString().slice(0,10)+"&"+hyd)
-        .then(function(s2){
-          var g2 = collectGames(s2);
-          if(!g2.length) throw new Error("No Cubs game found on "+dateStr+" or in the next 10 days.");
-          return { game: g2[0], fellBackTo: g2[0].officialDate };
-        });
-    });
-}
 function collectGames(sched){
   var out = [];
   (sched.dates||[]).forEach(function(d){ (d.games||[]).forEach(function(g){ out.push(g); }); });
   out.sort(function(a,b){ return new Date(a.gameDate) - new Date(b.gameDate); });
   return out;
-}
-function pickGame(games){
-  for(var i=0;i<games.length;i++){
-    if((games[i].status||{}).abstractGameState !== "Final") return games[i];
-  }
-  return games[games.length-1];
 }
 
 var mgrCache = {};
@@ -318,15 +294,15 @@ function mapOfficials(list){
 /* Posted crew, else project by rotating the previous game of this series.
    MLB rotates one position per game: HP<-1B, 1B<-2B, 2B<-3B, 3B<-HP.
    Crews change between series, so only rotate within the same matchup. */
-function getUmpires(game, live){
+function getUmpires(gd, live){
   var posted = (live.liveData && live.liveData.boxscore && live.liveData.boxscore.officials) || [];
   if(posted.length) return Promise.resolve({ crew: mapOfficials(posted), projected:false });
 
-  var d = new Date(game.gameDate);
+  var d = new Date(gd.datetime.dateTime);
   var start = new Date(d.getTime() - 6*86400000).toISOString().slice(0,10);
   var end   = new Date(d.getTime() - 1*86400000).toISOString().slice(0,10);
-  var away = game.teams.away.team.id, home = game.teams.home.team.id;
-  return getJSON("/api/v1/schedule?sportId=1&teamId="+TEAM_ID+"&startDate="+start+"&endDate="+end)
+  var away = gd.teams.away.id, home = gd.teams.home.id;
+  return getJSON("/api/v1/schedule?sportId=1&teamId="+home+"&startDate="+start+"&endDate="+end)
     .then(function(s){
       var prior = collectGames(s).filter(function(g){
         var a = g.teams.away.team.id, h = g.teams.home.team.id;
@@ -498,15 +474,10 @@ function buildSide(live, which, idx){
   };
 }
 
-function loadAll(dateStr){
-  var found;
-  return findGame(dateStr)
-    .then(function(f){
-      found = f;
-      return getJSON("/api/v1.1/game/" + f.game.gamePk + "/feed/live", 25000);
-    })
+function loadAll(gamePk){
+  return getJSON("/api/v1.1/game/" + gamePk + "/feed/live", 25000)
     .then(function(live){
-      var game = found.game;
+      var gd  = live.gameData;
       var idx  = playerIndex(live);
       var away = buildSide(live, "away", idx);
       var home = buildSide(live, "home", idx);
@@ -515,22 +486,20 @@ function loadAll(dateStr){
       away.pitchers = pitchersUsed(away, moves, idx);
       home.pitchers = pitchersUsed(home, moves, idx);
 
-      return Promise.all([getManager(away.id), getManager(home.id), getUmpires(game, live)])
+      return Promise.all([getManager(away.id), getManager(home.id), getUmpires(gd, live)])
       .then(function(res){
         away.manager = res[0];
         home.manager = res[1];
-        var gd = live.gameData;
         return {
           fetchedAt: Date.now(),
-          gamePk: game.gamePk,
-          date: game.officialDate,
-          fellBackTo: found.fellBackTo,
+          gamePk: gd.game.pk,
+          date: gd.datetime.officialDate,
           status: (gd.status||{}).detailedState || "",
           abstract: (gd.status||{}).abstractGameState || "",
           startTBD: !!((gd.status||{}).startTimeTBD),
           gameDateISO: gd.datetime.dateTime,
-          gameNumber: game.gameNumber || 1,
-          doubleHeader: game.doubleHeader && game.doubleHeader !== "N",
+          gameNumber: gd.game.gameNumber || 1,
+          doubleHeader: gd.game.doubleHeader && gd.game.doubleHeader !== "N",
           venue: gd.venue.name,
           venueTZ: ((gd.venue.timeZone||{}).id) || "America/Chicago",
           venueTZAbbr: ((gd.venue.timeZone||{}).tz) || "",
