@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0e3386">
-<title>Cubs Scorebook Prefill</title>
+<title>Eephus Halfliner Scorebook</title>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230e3386'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle' fill='%23fff' font-family='Helvetica,Arial' font-weight='bold'%3EC%3C/text%3E%3C/svg%3E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -178,9 +178,7 @@ tr.subrow .poschip{font-size:12px;font-weight:700}
 <div class="wrap">
 
   <div class="topbar">
-    <span class="brand">CUBS SCOREBOOK</span>
-    <input type="date" id="datePick" aria-label="Game date">
-    <button id="btnToday" title="Jump to today">Today</button>
+    <a class="brand" href="index.html" style="color:var(--cubs);text-decoration:none">EEPHUS HALFLINER</a>
     <div class="status">
       <span class="dot" id="dot"></span>
       <span id="statusText">Loading…</span>
@@ -206,7 +204,7 @@ tr.subrow .poschip{font-size:12px;font-weight:700}
    ======================================================================= */
 
 var API       = "https://statsapi.mlb.com";
-var CACHE_KEY = "cubs-scorebook-cache-v2";
+var CACHE_KEY = "eephus-scorebook-cache-v1";
 
 function $(id){ return document.getElementById(id); }
 function esc(s){
@@ -226,12 +224,6 @@ function getJSON(path, ms){
       return r.json();
     })
     .finally(function(){ clearTimeout(timer); });
-}
-
-function todayInChicago(){
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone:"America/Chicago", year:"numeric", month:"2-digit", day:"2-digit"
-  }).format(new Date());
 }
 
 /* Position code -> [scorebook number, abbreviation] */
@@ -540,7 +532,7 @@ function localTZ(){
 
    The choice is stored per gamePk, not globally: revealing at the ballpark
    doesn't un-hide a different game you're planning to watch on tape later. */
-function revealKey(pk){ return "cubs-scorebook-reveal-" + pk; }
+function revealKey(pk){ return "eephus-scorebook-reveal-" + pk; }
 function isRevealed(pk){
   try{ return localStorage.getItem(revealKey(pk)) === "1"; }catch(e){ return false; }
 }
@@ -675,7 +667,7 @@ function movesCard(d, reveal){
          '<div class="body"><div class="moves">'+rows+'</div></div></div>';
 }
 
-function render(d, meta){
+function render(d){
   var tzLocal   = localTZ();
   var venueTime = fmtTime(d.gameDateISO, d.venueTZ);
   var localTime = fmtTime(d.gameDateISO, tzLocal);
@@ -734,11 +726,6 @@ function render(d, meta){
     (u.projected ? ' <span class="badge proj">Projected</span>' : '')+
     '</h2><div class="body">'+umpBody+'</div></div>';
 
-  var fellBack = d.fellBackTo && d.fellBackTo !== meta.requestedDate
-    ? '<div class="note">No Cubs game on '+esc(meta.requestedDate)+
-      '. Showing the next one: <strong>'+esc(d.fellBackTo)+'</strong>.</div>'
-    : '';
-
   var reveal = isRevealed(d.gamePk);
   // Is there anything to reveal? Relievers count -- a bullpen tells a story.
   var hasInGame = d.moves.length > 0
@@ -760,7 +747,7 @@ function render(d, meta){
   }
 
   $("content").innerHTML =
-    fellBack + hero + info + umps + gate +
+    hero + info + umps + gate +
     sideCard(d.away, "Away", d, reveal) +
     sideCard(d.home, "Home", d, reveal) +
     movesCard(d, reveal);
@@ -770,7 +757,7 @@ function render(d, meta){
    CONTROLLER
    ======================================================================= */
 
-var state = { date:null, loading:false, data:null, lastError:null, timer:null };
+var state = { gamePk:null, loading:false, data:null, lastError:null, timer:null };
 
 function setStatus(text, kind, spinning){
   $("statusText").innerHTML = (spinning ? '<span class="spin"></span> ' : '') + esc(text);
@@ -785,18 +772,17 @@ function ago(ts){
   return Math.floor(m/60)+"h "+(m%60)+"m ago";
 }
 
-/* Cache without the player index — it's rebuildable and bulky. */
-function saveCache(d, dateStr){
+/* Cache holds exactly one game, keyed by gamePk since the page always
+   loads a single game identified by the URL. */
+function saveCache(d, gamePk){
   try{
-    var slim = {}; for(var k in d) if(k !== "idx") slim[k] = d[k];
-    slim.idx = d.idx;   // needed to render sub rows offline; still small enough
-    localStorage.setItem(CACHE_KEY, JSON.stringify({date:dateStr, data:slim}));
+    localStorage.setItem(CACHE_KEY, JSON.stringify({gamePk:String(gamePk), data:d}));
   }catch(e){}
 }
-function loadCache(dateStr){
+function loadCache(gamePk){
   try{
     var c = JSON.parse(localStorage.getItem(CACHE_KEY)||"null");
-    if(c && c.date === dateStr) return c.data;
+    if(c && c.gamePk === String(gamePk)) return c.data;
   }catch(e){}
   return null;
 }
@@ -807,11 +793,11 @@ function refresh(manual){
   $("btnRefresh").disabled = true;
   setStatus(manual ? "Refreshing…" : "Checking for updates…", null, true);
 
-  loadAll(state.date).then(function(d){
+  loadAll(state.gamePk).then(function(d){
     var prevMoves = state.data ? state.data.moves.length : null;
     state.data = d; state.lastError = null;
-    saveCache(d, state.date);
-    render(d, { requestedDate: state.date });
+    saveCache(d, state.gamePk);
+    render(d);
     // Only mention new moves if this game is already un-hidden -- otherwise
     // "3 new moves" is itself a hint that something is happening.
     var newMoves = (isRevealed(d.gamePk) && prevMoves != null && d.moves.length > prevMoves)
@@ -822,9 +808,9 @@ function refresh(manual){
     scheduleNext(d);
   }).catch(function(err){
     state.lastError = err;
-    var cached = state.data || loadCache(state.date);
+    var cached = state.data || loadCache(state.gamePk);
     if(cached){
-      render(cached, { requestedDate: state.date });
+      render(cached);
       setStatus("Offline — showing data from " + ago(cached.fetchedAt), "stale", false);
     }else{
       $("content").innerHTML = '<div class="err"><strong>Couldn’t load.</strong><br>'+
@@ -871,17 +857,15 @@ document.addEventListener("visibilitychange", function(){
   }
 });
 
-function setDate(dateStr, push){
-  state.date = dateStr;
-  $("datePick").value = dateStr;
+function setGamePk(gamePk, push){
+  state.gamePk = gamePk;
   if(push){
     var u = new URL(location.href);
-    if(dateStr === todayInChicago()) u.searchParams.delete("date");
-    else u.searchParams.set("date", dateStr);
+    u.searchParams.set("gamePk", gamePk);
     history.replaceState(null,"",u);
   }
-  var cached = loadCache(dateStr);
-  if(cached) render(cached, { requestedDate: dateStr });
+  var cached = loadCache(gamePk);
+  if(cached) render(cached);
   refresh(false);
 }
 
@@ -892,18 +876,20 @@ $("content").addEventListener("click", function(e){
   }
   if(!el || el === this || !state.data) return;
   setRevealed(state.data.gamePk, el.getAttribute("data-reveal") === "1");
-  render(state.data, { requestedDate: state.date });
+  render(state.data);
 });
 
 $("btnRefresh").addEventListener("click", function(){ refresh(true); });
-$("btnToday").addEventListener("click", function(){ setDate(todayInChicago(), true); });
-$("datePick").addEventListener("change", function(e){
-  if(e.target.value) setDate(e.target.value, true);
-});
 
 (function(){
-  var q = new URLSearchParams(location.search).get("date");
-  setDate(/^\d{4}-\d{2}-\d{2}$/.test(q||"") ? q : todayInChicago(), false);
+  var pk = new URLSearchParams(location.search).get("gamePk");
+  if(!/^\d+$/.test(pk||"")){
+    $("content").innerHTML = '<div class="err"><strong>No game selected.</strong><br>'+
+      'Pick a game from <a href="index.html">the schedule</a>.</div>';
+    setStatus("No game selected", "err", false);
+    return;
+  }
+  setGamePk(pk, false);
 })();
 </script>
 </body>
