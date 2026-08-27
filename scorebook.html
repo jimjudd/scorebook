@@ -1062,11 +1062,16 @@ function setGamePk(gamePk){
 
 $("content").addEventListener("click", function(e){
   var el = e.target;
-  while(el && el !== this && !(el.getAttribute && el.getAttribute("data-reveal"))){
+  while(el && el !== this && !(el.getAttribute &&
+        (el.getAttribute("data-reveal") || el.getAttribute("data-stats-reveal")))){
     el = el.parentNode;
   }
   if(!el || el === this || !state.data) return;
-  setRevealed(state.data.gamePk, el.getAttribute("data-reveal") === "1");
+  if(el.getAttribute("data-reveal") != null){
+    setRevealed(state.data.gamePk, el.getAttribute("data-reveal") === "1");
+  }else{
+    setStatsRevealed(state.data.gamePk, el.getAttribute("data-stats-reveal") === "1");
+  }
   render(state.data);
 });
 
