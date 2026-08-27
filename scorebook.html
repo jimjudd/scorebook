@@ -751,7 +751,7 @@ function pitcherList(side, d, reveal, statsReveal){
   return '<div class="pit">'+rows+'</div>';
 }
 
-function sideCard(side, label, d, reveal){
+function sideCard(side, label, d, reveal, statsReveal){
   return '<div class="card">'+
     '<h2>'+esc(label)+' · '+esc(side.name)+
       (side.record ? ' <span class="rec">'+esc(side.record)+'</span>' : '')+
@@ -759,9 +759,9 @@ function sideCard(side, label, d, reveal){
     '<div class="body">'+
       '<div class="lbl">Pitchers</div>'+
       '<div style="height:7px"></div>'+
-      pitcherList(side, d, reveal)+
+      pitcherList(side, d, reveal, statsReveal)+
       '<div style="height:14px"></div>'+
-      lineupTable(side, d, reveal)+
+      lineupTable(side, d, reveal, statsReveal)+
     '</div>'+
   '</div>';
 }
