@@ -81,7 +81,7 @@ WMO_CONDITIONS = {
 
 def get(path):
     req = urllib.request.Request(
-        API + path, headers={"User-Agent": "cubs-scorebook/2.0"}
+        API + path, headers={"User-Agent": "eephus-scorebook/2.0"}
     )
     with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
         return json.load(r)
