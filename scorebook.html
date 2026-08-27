@@ -400,6 +400,9 @@ function playerIndex(live){
       idx[id].num  = p.jerseyNumber || idx[id].num;
       idx[id].side = side;
       idx[id].name = idx[id].name || (p.person||{}).fullName;
+      var bs = (p.stats||{}).batting;
+      if(bs) idx[id].stats = { ab: bs.atBats, r: bs.runs, h: bs.hits, bb: bs.baseOnBalls,
+                                lob: bs.leftOnBase, rbi: bs.rbi, tb: bs.totalBases };
     });
   });
   var gp = live.gameData.players || {};
