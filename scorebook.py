@@ -199,25 +199,22 @@ def forecast(lat, lon, iso_dt):
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             j = json.load(r)
-    except Exception:
-        return None
-    hourly = j.get("hourly") or {}
-    times = hourly.get("time") or []
-    if not times:
-        return None
-    best_idx, best_diff = -1, None
-    for i, t in enumerate(times):
-        diff = abs(datetime.fromisoformat(t + "+00:00") - target)
-        if best_diff is None or diff < best_diff:
-            best_idx, best_diff = i, diff
-    if best_idx < 0:
-        return None
-    try:
+        hourly = j.get("hourly") or {}
+        times = hourly.get("time") or []
+        if not times:
+            return None
+        best_idx, best_diff = -1, None
+        for i, t in enumerate(times):
+            diff = abs(datetime.fromisoformat(t + "+00:00") - target)
+            if best_diff is None or diff < best_diff:
+                best_idx, best_diff = i, diff
+        if best_idx < 0:
+            return None
         temp = round(hourly["temperature_2m"][best_idx])
         code = hourly["weathercode"][best_idx]
-    except (KeyError, IndexError, TypeError):
+        return {"temp": temp, "condition": WMO_CONDITIONS.get(code, "--")}
+    except Exception:
         return None
-    return {"temp": temp, "condition": WMO_CONDITIONS.get(code, "--")}
 
 
 def conditions(gd, is_pregame):
@@ -275,7 +272,10 @@ def conditions_line(cond):
     if mode == "domed":
         return "WEATHER", "Domed"
     if mode == "forecast":
-        return "FORECAST", "%s, %s°F" % (cond.get("condition") or "--", cond.get("temp"))
+        val = cond.get("condition") or "--"
+        if cond.get("temp") is not None:
+            val += ", %s°F" % cond["temp"]
+        return "FORECAST", val
     if mode == "actual" and (cond.get("condition") or cond.get("temp") is not None):
         val = cond.get("condition") or "--"
         if cond.get("temp") is not None:
@@ -810,15 +810,15 @@ def render_html(d, show_moves=False):
     if cl:
         label, val = cl
         cond_cells.append('<div class="cell"><div class="lbl">%s</div>'
-                          '<div class="val">%s</div></div>' % (esc(label.title()), esc(val)))
+                           '<div class="val">%s</div></div>' % (esc(label.title()), esc(val)))
     if d["attendance"] is not None:
         cond_cells.append('<div class="cell"><div class="lbl">Attendance</div>'
-                          '<div class="val">%s</div></div>'
-                          % esc("{:,}".format(d["attendance"])))
+                           '<div class="val">%s</div></div>'
+                           % esc("{:,}".format(d["attendance"])))
     if d["end_time"]:
         cond_cells.append('<div class="cell"><div class="lbl">End Time</div>'
-                          '<div class="val">%s</div></div>'
-                          % esc(fmt_time(d["end_time"], d["venue_tz"])))
+                           '<div class="val">%s</div></div>'
+                           % esc(fmt_time(d["end_time"], d["venue_tz"])))
     conditions_card = (
         '<div class="card"><h2>Conditions</h2><div class="body"><div class="kv">%s</div></div></div>'
         % "".join(cond_cells)) if cond_cells else ""
