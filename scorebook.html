@@ -920,10 +920,32 @@ function render(d){
     '</div>';
   }
 
+  var statsReveal = isStatsRevealed(d.gamePk);
+  var hasStats = [].concat(d.away.batters, d.home.batters).some(function(b){
+                   return b.stats && b.stats.ab > 0;
+                 })
+              || [].concat(d.away.pitchers||[], d.home.pitchers||[]).some(function(p){
+                   return p.stats && p.stats.bf > 0;
+                 });
+
+  var statsGate = "";
+  if(hasStats && !statsReveal){
+    statsGate = '<div class="gate">'+
+      '<div class="g-txt"><b>Stats hidden.</b> Box-score numbers reveal how '+
+      'players are actually performing.</div>'+
+      '<button data-stats-reveal="1">Show stats</button>'+
+    '</div>';
+  }else if(hasStats && statsReveal){
+    statsGate = '<div class="gate">'+
+      '<div class="g-txt">Showing stats for this game.</div>'+
+      '<button data-stats-reveal="0">Hide</button>'+
+    '</div>';
+  }
+
   $("content").innerHTML =
-    hero + conditionsCard(d) + info + umps + gate +
-    sideCard(d.away, "Away", d, reveal) +
-    sideCard(d.home, "Home", d, reveal) +
+    hero + conditionsCard(d) + info + umps + gate + statsGate +
+    sideCard(d.away, "Away", d, reveal, statsReveal) +
+    sideCard(d.home, "Home", d, reveal, statsReveal) +
     movesCard(d, reveal);
 }
 
