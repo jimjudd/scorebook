@@ -4,6 +4,7 @@ snapshot-*.html
 
 # local editor / tooling
 .claude/
+.superpowers/
 __pycache__/
 *.pyc
 .DS_Store
