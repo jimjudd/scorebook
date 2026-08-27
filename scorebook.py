@@ -354,6 +354,9 @@ def load(game_pk):
     tz = (gd["venue"].get("timeZone") or {}).get("id") or "America/Chicago"
     away["manager"] = manager(away["id"])
     home["manager"] = manager(home["id"])
+    # Minimal shim satisfying umpires()'s current param needs (gameDate + team
+    # ids) -- if umpires() ever needs more from the schedule game object,
+    # add it here too.
     game = {
         "gameDate": gd["datetime"]["dateTime"],
         "teams": {"away": {"team": {"id": away["id"]}},
@@ -855,11 +858,17 @@ def main():
             away = g["teams"]["away"]["team"]["name"]
             home = g["teams"]["home"]["team"]["name"]
             print("  %2d) %s @ %s" % (i, away, home), file=sys.stderr)
-        choice = input("Pick a game (1-%d): " % len(games))
         try:
-            game_pk = games[int(choice) - 1]["gamePk"]
+            choice = input("Pick a game (1-%d): " % len(games))
+            n = int(choice)
+            if not (1 <= n <= len(games)):
+                raise ValueError
+            game_pk = games[n - 1]["gamePk"]
         except (ValueError, IndexError):
             print("Invalid selection.", file=sys.stderr)
+            return 1
+        except EOFError:
+            print("No input available for selection.", file=sys.stderr)
             return 1
 
     while True:
