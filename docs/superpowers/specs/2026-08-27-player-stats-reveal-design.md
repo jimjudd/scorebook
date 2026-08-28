@@ -25,8 +25,8 @@ and pitcher object, mapped from those existing fields:
 | H | `hits` | `hits` |
 | BB | `baseOnBalls` | `baseOnBalls` |
 | LOB | `leftOnBase` | — |
-| RBI | `rbi` | — |
 | TB | `totalBases` | — |
+| RBI | `rbi` | — |
 | ER | — | `earnedRuns` |
 | K | — | `strikeOuts` |
 | BF | — | `battersFaced` |
@@ -62,7 +62,7 @@ Confirmed via mockup against the page's real CSS.
 
 **Batters** — `lineupTable()` already renders a `<table>`. When stats are
 revealed, seven columns append after the existing ones (Slot / # / Batter /
-Pos / B): **AB, R, H, BB, LOB, RBI, TB**. A batter with no plate appearance
+Pos / B): **AB, R, H, BB, LOB, TB, RBI**. A batter with no plate appearance
 yet shows `—` in every stat cell instead of `0`.
 
 **Pitchers** — `pitcherList()` is a stacked name/meta list, not a table.
